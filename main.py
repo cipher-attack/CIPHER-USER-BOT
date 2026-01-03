@@ -28,10 +28,10 @@ except Exception as e:
     logger.error(f"❌ Init Error: {e}")
     exit(1)
 
-# Cache: ID የደበቁ ሰዎችን መልእክት የምናስታውስበት
-# Format: {Saved_Message_ID : Original_Sender_ID}
+# Cache & Global Variables
 reply_cache = {}
 download_cache = {}
+MY_ID = None  # የራስህን ID እዚህ እንይዛለን (Speed Improvement)
 
 # ---------------------------------------------------------
 # 2. PREMIUM FEATURES
@@ -66,9 +66,11 @@ async def auto_translate(event):
 async def premium_emoji(event):
     name = event.pattern_match.group(1)
     await event.delete()
-    search_map = {"haha": "laugh", "fire": "hot", "sad": "cry"}
+    # ለፍለጋ እንዲመች ስሞችን ማስተካከል
+    search_map = {"haha": "laugh", "fire": "hot", "sad": "cry", "lol": "laugh"}
     query = search_map.get(name, name)
     try:
+        # ኦፊሴላዊውን ቻናል መጠቀም
         async for msg in client.iter_messages("AnimatedStickers", search=query, limit=1):
             if msg.media:
                 await client.send_file(event.chat_id, msg.media)
@@ -89,40 +91,44 @@ async def speed_link(event):
     except: await event.edit("❌ Error generating link.")
 
 # ---------------------------------------------------------
-# 3. GHOST MODE & VAULT BREAKER (THE FIX)
+# 3. GHOST MODE & VAULT BREAKER (FIXED)
 # ---------------------------------------------------------
 
 @client.on(events.NewMessage(incoming=True))
 async def incoming_handler(event):
-    # Safe TTL Check
+    global MY_ID
+    
+    # Safe TTL Check (ለ View Once)
     ttl = getattr(event.message, 'ttl_period', None) or getattr(event.message, 'ttl_seconds', None)
 
-    # 1. Vault Breaker
+    # 1. Vault Breaker (Self-Destruct Saver)
     if ttl:
         try:
             sender = await event.get_sender()
             file = await event.download_media()
+            # FIX: ፋይሉ መውረዱን ካረጋገጥን በኋላ ነው የምናጠፋው
             if file:
                 await client.send_message("me", f"💣 **Captured View-Once**\n👤: {sender.first_name}", file=file)
                 os.remove(file)
-        except: pass
+        except Exception as e:
+            logger.error(f"Vault Error: {e}")
         return
 
-    # 2. Ghost Mode (Forwarding with Memory)
+    # 2. Ghost Mode (Saved Messages Forwarder)
+    # ማስተካከያ: MY_ID አስቀድሞ ስለተያዘ ቦቱ አይዘገይም
     if event.is_private and not event.is_group and not event.is_channel:
         try:
-            me = await client.get_me()
-            if event.sender_id != me.id:
+            # ራሴ የላኩት ካልሆነ ብቻ
+            if MY_ID and event.sender_id != MY_ID:
                 # ወደ Saved Messages እንልካለን
                 forwarded_msg = await client.forward_messages("me", event.message)
                 
-                # ዋናው ቁልፍ (The Fix): 
-                # የተላከውን መልእክት ID እና የሰውዬውን ID መዝግበን እንይዛለን
-                # Privacy ቢዘጋም እኛ ጋር ተመዝግቧል
-                reply_cache[forwarded_msg.id] = event.sender_id
+                # Cache መዝገብ (ለ Reply እንዲያመች)
+                if forwarded_msg:
+                    reply_cache[forwarded_msg.id] = event.sender_id
                 
-                # Cache እንዳይሞላ ከ1000 በላይ ከሆነ እናጽዳ (Optional)
-                if len(reply_cache) > 1000:
+                # Cache እንዳይሞላ
+                if len(reply_cache) > 500:
                     reply_cache.clear()
         except Exception as e:
             logger.error(f"Ghost Forward Error: {e}")
@@ -139,9 +145,10 @@ async def saved_msg_actions(event):
             msg = await client.get_messages(chan_id, ids=msg_id)
             if msg and msg.media:
                 f = await client.download_media(msg)
-                await client.send_file("me", f, caption="✅ **Saved!**")
-                os.remove(f)
-                await event.delete()
+                if f:
+                    await client.send_file("me", f, caption="✅ **Saved!**")
+                    os.remove(f)
+                    await event.delete()
         except: await event.edit("❌ Failed.")
 
     # THE REAL GHOST REPLY
@@ -153,9 +160,8 @@ async def saved_msg_actions(event):
         if reply_msg.id in reply_cache:
             target_id = reply_cache[reply_msg.id]
         
-        # ዘዴ 2: ካልተገኘ፣ የተለመደውን Forward Header መሞከር
+        # ዘዴ 2: ካልተገኘ፣ Forward Header መሞከር
         elif reply_msg.fwd_from:
-             # ID ካለው (Privacy ካልዘጋ)
              if reply_msg.fwd_from.from_id:
                  target_id = getattr(reply_msg.fwd_from.from_id, 'user_id', None) or reply_msg.fwd_from.from_id
 
@@ -165,10 +171,11 @@ async def saved_msg_actions(event):
                 await client.send_message(target_id, event.message.text)
                 await event.edit(f"👻 **Sent:** {event.message.text}")
             except Exception as e:
-                await event.edit(f"❌ Send Error: {e}")
+                # ስህተት ከመጣ ዝም ይበል (Saved Messages እንዳይበላሽ)
+                pass
 
 # ---------------------------------------------------------
-# 4. SERVER
+# 4. SERVER & STARTUP
 # ---------------------------------------------------------
 
 async def home(r): return web.Response(text="Super Userbot Running!")
@@ -186,8 +193,15 @@ async def download(r):
     return web.Response(text="Error", status=404)
 
 async def main():
+    global MY_ID
+    logger.info("⏳ Starting...")
     await client.start()
     
+    # እዚህ ጋር IDህን አንዴ ብቻ እንይዛለን (ለ Ghost Mode ፍጥነት ወሳኝ ነው)
+    me = await client.get_me()
+    MY_ID = me.id
+    logger.info(f"✅ LOGGED IN AS: {me.first_name} (ID: {MY_ID})")
+
     app = web.Application()
     app.router.add_get('/', home)
     app.router.add_get('/download/{file_id}', download)
