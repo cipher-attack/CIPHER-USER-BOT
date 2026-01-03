@@ -31,7 +31,7 @@ try:
     # Gemini Setup
     if gemini_key:
         genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-2-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         logger.info("✅ Gemini AI Connected!")
 except Exception as e:
     logger.error(f"❌ Init Error: {e}")
