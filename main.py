@@ -4,7 +4,6 @@ import logging
 from telethon import TelegramClient, events, functions, types
 from telethon.sessions import StringSession
 from aiohttp import web
-# አዲሱ ተርጓሚ (ይህ cgi error የለበትም)
 from deep_translator import GoogleTranslator
 
 # ---------------------------------------------------------
@@ -32,10 +31,10 @@ except Exception as e:
 download_cache = {}
 
 # ---------------------------------------------------------
-# 2. PREMIUM FEATURES
+# 2. PREMIUM FEATURES (Emojis, Translate, Link)
 # ---------------------------------------------------------
 
-# A. MAGIC TRANSLATOR (በ Deep Translator የተስተካከለ)
+# A. MAGIC TRANSLATOR
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.tr"))
 async def translate_reply(event):
     reply = await event.get_reply_message()
@@ -44,7 +43,6 @@ async def translate_reply(event):
         return
     try:
         await event.edit("🔄 **Translating...**")
-        # አዲሱ logic
         translation = GoogleTranslator(source='auto', target='en').translate(reply.text)
         await event.edit(f"🌍 **Translation:**\n\n`{translation}`")
     except Exception as e:
@@ -53,29 +51,36 @@ async def translate_reply(event):
 @client.on(events.NewMessage(outgoing=True))
 async def auto_translate(event):
     text = event.text
-    # "//" ካለበት ብቻ ይስራ (ከሌሎች ጋር እንዳይጋጭ)
     if "//" in text and not event.pattern_match:
         try:
             split_text = text.split("//")
             original_text = split_text[0]
-            lang_code = split_text[1].strip() # ምሳሌ: en, ar, fr
-            
+            lang_code = split_text[1].strip()
             if len(lang_code) == 2 or len(lang_code) == 5:
-                # አዲሱ logic
                 translated = GoogleTranslator(source='auto', target=lang_code).translate(original_text)
                 await event.edit(translated)
         except: pass
 
-# B. FAKE ANIMATED EMOJI
-@client.on(events.NewMessage(outgoing=True, pattern=r"^\.(haha|love|sad|fire|wow|cry)"))
+# B. FAKE ANIMATED EMOJI (FIXED)
+# አሁን የሚፈልገው 'AnimatedStickers' ከሚባለው ኦፊሴላዊ ቻናል ነው
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.(haha|love|sad|fire|wow|cry|lol)"))
 async def premium_emoji_hack(event):
     name = event.pattern_match.group(1)
-    await event.delete()
+    await event.delete() # ቴክስቱን ያጥፋው
     try:
-        async for message in client.iter_messages("AnimatedEmojies", search=name, limit=1):
+        # ለፍለጋ የሚመች ቃል እንምረጥ
+        search_query = name
+        if name == "haha": search_query = "laugh"
+        if name == "fire": search_query = "hot"
+        
+        # ከኦፊሴላዊ ቻናል ላይ ስቲከር መፈለግ
+        async for message in client.iter_messages("AnimatedStickers", search=search_query, limit=1):
             if message.media:
                 await client.send_file(event.chat_id, message.media)
-    except: pass
+                return
+    except Exception as e:
+        # ካልተገኘ በ Saved Messages ይናገር (እንዲያውቁት)
+        await client.send_message("me", f"❌ Emoji Error: {e}")
 
 # C. SPEED FREAK (Direct Link)
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.link"))
@@ -95,13 +100,16 @@ async def direct_link_gen(event):
         await event.edit(f"❌ Error: {e}")
 
 # ---------------------------------------------------------
-# 3. GHOST MODE & VAULT BREAKER
+# 3. GHOST MODE & VAULT BREAKER (FIXED & PRIORITIZED)
 # ---------------------------------------------------------
 
 @client.on(events.NewMessage(incoming=True))
 async def incoming_handler(event):
-    # 1. Vault Breaker (View Once)
-    if event.message.ttl_seconds:
+    # Safe Check for TTL (Crash እንዳያደርግ)
+    ttl = getattr(event.message, 'ttl_period', None) or getattr(event.message, 'ttl_seconds', None)
+
+    # 1. Vault Breaker (View Once Saver)
+    if ttl:
         try:
             sender = await event.get_sender()
             file = await event.download_media()
@@ -111,17 +119,23 @@ async def incoming_handler(event):
             logger.error(f"Vault Error: {e}")
         return
 
-    # 2. Ghost Mode
-    if event.is_private:
+    # 2. Ghost Mode (Forwarding)
+    # ማስተካከያ: የግል ቻት ከሆነ እና ከሰው ከሆነ (Channel ካልሆነ)
+    if event.is_private and not event.is_channel and not event.is_group:
         try:
-            await client.forward_messages("me", event.message)
-        except: pass
+            # ቻት ID የራስህ ካልሆነ (አንተ ከሌላ ዲቫይስ ስትልክ እንዳይደግመው)
+            me = await client.get_me()
+            if event.sender_id != me.id:
+                await client.forward_messages("me", event.message)
+        except Exception as e:
+            logger.error(f"Ghost Mode Error: {e}")
 
+# 3. Restricted Channel Saver & Ghost Reply
 @client.on(events.NewMessage(chats="me"))
 async def saved_messages_handler(event):
     msg_text = event.message.text
     
-    # Restricted Channel Link Detector
+    # Restricted Channel Bypass
     if msg_text and "t.me/c/" in msg_text and not event.is_reply:
         try:
             await event.edit("🔓 **Bypassing Restriction...**")
@@ -140,15 +154,25 @@ async def saved_messages_handler(event):
         except Exception as e:
             await event.edit(f"❌ Failed: {e}")
 
-    # Ghost Reply
+    # Ghost Reply Logic
     if event.is_reply:
         reply_msg = await event.get_reply_message()
-        if reply_msg.fwd_from and hasattr(reply_msg.fwd_from.from_id, 'user_id'):
-            target_id = reply_msg.fwd_from.from_id.user_id
-            try:
-                await client.send_message(target_id, event.message.text)
-                await event.edit(f"👻 **Ghost Reply:** {event.message.text}")
-            except: pass
+        if reply_msg and reply_msg.fwd_from:
+            # Forward የተደረገው ከ User ከሆነ
+            if reply_msg.fwd_from.from_id:
+                 try:
+                    # User ID ማግኘት (አንዳንድ ጊዜ user_id አንዳንድ ጊዜ just ID ሊሆን ይችላል)
+                    target_id = getattr(reply_msg.fwd_from.from_id, 'user_id', None)
+                    if not target_id:
+                         # ቀጥታ ID ከሆነ
+                         target_id = reply_msg.fwd_from.from_id
+                    
+                    if isinstance(target_id, int):
+                        await client.send_message(target_id, event.message.text)
+                        await event.edit(f"👻 **Ghost Reply:** {event.message.text}")
+                 except Exception as e:
+                    # ስህተት ካለ ዝም ይበል (Saved Messages እንዳይጨናነቅ)
+                    pass
 
 # ---------------------------------------------------------
 # 4. SYSTEM START & SERVER
