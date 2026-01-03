@@ -32,7 +32,7 @@ try:
     # AI ማዋቀር (Gemini Setup)
     if gemini_key:
         genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         logger.info("✅ Gemini AI Connected!")
     else:
         logger.warning("⚠️ GEMINI_KEY missing. AI features will not work.")
@@ -46,7 +46,7 @@ reply_cache = {}
 download_cache = {}
 MY_ID = None  
 # አንተን የሚጠሩበት ስሞች (Eavesdropper Keywords) - እዚህ ጋር ስምህን ጨምር
-MY_KEYWORDS = ["Melaku", "Bro", "Admin", "አድሚን", "መላኩ"] 
+MY_KEYWORDS = ["cipher attack", "Cipher", "hacking", "የፈጠነ", "ብሩክ"] 
 
 # ---------------------------------------------------------
 # 2. GOD MODE FEATURES (AI & Voice) - አዲስ የተጨመሩ
