@@ -19,217 +19,193 @@ session_string = os.environ.get("SESSION")
 app_url = os.environ.get("RENDER_EXTERNAL_URL", "http://0.0.0.0:8080")
 
 if not api_id or not api_hash or not session_string:
-    logger.error("❌ Error: API_ID, API_HASH or SESSION variable is missing!")
+    logger.error("❌ Error: Credentials missing!")
     exit(1)
 
 try:
     client = TelegramClient(StringSession(session_string), int(api_id), api_hash)
 except Exception as e:
-    logger.error(f"❌ Initialization Error: {e}")
+    logger.error(f"❌ Init Error: {e}")
     exit(1)
 
+# Cache: ID የደበቁ ሰዎችን መልእክት የምናስታውስበት
+# Format: {Saved_Message_ID : Original_Sender_ID}
+reply_cache = {}
 download_cache = {}
 
 # ---------------------------------------------------------
-# 2. PREMIUM FEATURES (Emojis, Translate, Link)
+# 2. PREMIUM FEATURES
 # ---------------------------------------------------------
 
-# A. MAGIC TRANSLATOR
+# A. TRANSLATOR
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.tr"))
 async def translate_reply(event):
     reply = await event.get_reply_message()
     if not reply or not reply.text:
-        await event.edit("❌ Reply to a text message!")
+        await event.edit("❌ Reply to text!")
         return
     try:
         await event.edit("🔄 **Translating...**")
         translation = GoogleTranslator(source='auto', target='en').translate(reply.text)
         await event.edit(f"🌍 **Translation:**\n\n`{translation}`")
-    except Exception as e:
-        await event.edit(f"❌ Error: {e}")
+    except: await event.edit("❌ Error translating.")
 
 @client.on(events.NewMessage(outgoing=True))
 async def auto_translate(event):
-    text = event.text
-    if "//" in text and not event.pattern_match:
+    if "//" in event.text and not event.pattern_match:
         try:
-            split_text = text.split("//")
-            original_text = split_text[0]
-            lang_code = split_text[1].strip()
-            if len(lang_code) == 2 or len(lang_code) == 5:
-                translated = GoogleTranslator(source='auto', target=lang_code).translate(original_text)
-                await event.edit(translated)
+            text, lang = event.text.split("//")
+            lang = lang.strip()
+            if len(lang) in [2, 5]:
+                tr = GoogleTranslator(source='auto', target=lang).translate(text)
+                await event.edit(tr)
         except: pass
 
-# B. FAKE ANIMATED EMOJI (FIXED)
-# አሁን የሚፈልገው 'AnimatedStickers' ከሚባለው ኦፊሴላዊ ቻናል ነው
+# B. PREMIUM EMOJI
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.(haha|love|sad|fire|wow|cry|lol)"))
-async def premium_emoji_hack(event):
+async def premium_emoji(event):
     name = event.pattern_match.group(1)
-    await event.delete() # ቴክስቱን ያጥፋው
+    await event.delete()
+    search_map = {"haha": "laugh", "fire": "hot", "sad": "cry"}
+    query = search_map.get(name, name)
     try:
-        # ለፍለጋ የሚመች ቃል እንምረጥ
-        search_query = name
-        if name == "haha": search_query = "laugh"
-        if name == "fire": search_query = "hot"
-        
-        # ከኦፊሴላዊ ቻናል ላይ ስቲከር መፈለግ
-        async for message in client.iter_messages("AnimatedStickers", search=search_query, limit=1):
-            if message.media:
-                await client.send_file(event.chat_id, message.media)
+        async for msg in client.iter_messages("AnimatedStickers", search=query, limit=1):
+            if msg.media:
+                await client.send_file(event.chat_id, msg.media)
                 return
-    except Exception as e:
-        # ካልተገኘ በ Saved Messages ይናገር (እንዲያውቁት)
-        await client.send_message("me", f"❌ Emoji Error: {e}")
+    except: pass
 
-# C. SPEED FREAK (Direct Link)
+# C. SPEED LINK
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.link"))
-async def direct_link_gen(event):
+async def speed_link(event):
     reply = await event.get_reply_message()
     if not reply or not reply.media:
-        await event.edit("❌ Reply to a media file!")
+        await event.edit("❌ Reply to media!")
         return
-    
-    await event.edit("🚀 **Generating High-Speed Link...**")
     try:
         file_id = str(reply.id)
         download_cache[file_id] = reply
-        final_link = f"{app_url}/download/{file_id}"
-        await event.edit(f"⚡ **Direct Link Generated:**\n\n`{final_link}`\n\n_Copy to IDM/ADM for max speed!_")
-    except Exception as e:
-        await event.edit(f"❌ Error: {e}")
+        await event.edit(f"⚡ **Link:** `{app_url}/download/{file_id}`")
+    except: await event.edit("❌ Error generating link.")
 
 # ---------------------------------------------------------
-# 3. GHOST MODE & VAULT BREAKER (FIXED & PRIORITIZED)
+# 3. GHOST MODE & VAULT BREAKER (THE FIX)
 # ---------------------------------------------------------
 
 @client.on(events.NewMessage(incoming=True))
 async def incoming_handler(event):
-    # Safe Check for TTL (Crash እንዳያደርግ)
+    # Safe TTL Check
     ttl = getattr(event.message, 'ttl_period', None) or getattr(event.message, 'ttl_seconds', None)
 
-    # 1. Vault Breaker (View Once Saver)
+    # 1. Vault Breaker
     if ttl:
         try:
             sender = await event.get_sender()
             file = await event.download_media()
-            await client.send_message("me", f"💣 **Captured Self-Destruct Media**\n👤 From: {sender.first_name}", file=file)
-            os.remove(file)
-        except Exception as e:
-            logger.error(f"Vault Error: {e}")
+            if file:
+                await client.send_message("me", f"💣 **Captured View-Once**\n👤: {sender.first_name}", file=file)
+                os.remove(file)
+        except: pass
         return
 
-    # 2. Ghost Mode (Forwarding)
-    # ማስተካከያ: የግል ቻት ከሆነ እና ከሰው ከሆነ (Channel ካልሆነ)
-    if event.is_private and not event.is_channel and not event.is_group:
+    # 2. Ghost Mode (Forwarding with Memory)
+    if event.is_private and not event.is_group and not event.is_channel:
         try:
-            # ቻት ID የራስህ ካልሆነ (አንተ ከሌላ ዲቫይስ ስትልክ እንዳይደግመው)
             me = await client.get_me()
             if event.sender_id != me.id:
-                await client.forward_messages("me", event.message)
+                # ወደ Saved Messages እንልካለን
+                forwarded_msg = await client.forward_messages("me", event.message)
+                
+                # ዋናው ቁልፍ (The Fix): 
+                # የተላከውን መልእክት ID እና የሰውዬውን ID መዝግበን እንይዛለን
+                # Privacy ቢዘጋም እኛ ጋር ተመዝግቧል
+                reply_cache[forwarded_msg.id] = event.sender_id
+                
+                # Cache እንዳይሞላ ከ1000 በላይ ከሆነ እናጽዳ (Optional)
+                if len(reply_cache) > 1000:
+                    reply_cache.clear()
         except Exception as e:
-            logger.error(f"Ghost Mode Error: {e}")
+            logger.error(f"Ghost Forward Error: {e}")
 
-# 3. Restricted Channel Saver & Ghost Reply
+# 3. Ghost Reply Handler
 @client.on(events.NewMessage(chats="me"))
-async def saved_messages_handler(event):
-    msg_text = event.message.text
-    
-    # Restricted Channel Bypass
-    if msg_text and "t.me/c/" in msg_text and not event.is_reply:
+async def saved_msg_actions(event):
+    # Restricted Channel Saver
+    if event.text and "t.me/c/" in event.text and not event.is_reply:
         try:
-            await event.edit("🔓 **Bypassing Restriction...**")
-            parts = msg_text.split("/")
-            channel_id = int("-100" + parts[-2])
-            msg_id = int(parts[-1])
-            
-            message = await client.get_messages(channel_id, ids=msg_id)
-            if message and message.media:
-                file = await client.download_media(message)
-                await client.send_file("me", file, caption="✅ **Restricted Content Saved!**")
-                os.remove(file)
+            await event.edit("🔓 **Bypassing...**")
+            parts = event.text.split("/")
+            chan_id, msg_id = int("-100" + parts[-2]), int(parts[-1])
+            msg = await client.get_messages(chan_id, ids=msg_id)
+            if msg and msg.media:
+                f = await client.download_media(msg)
+                await client.send_file("me", f, caption="✅ **Saved!**")
+                os.remove(f)
                 await event.delete()
-            else:
-                await event.edit("❌ Content not found.")
-        except Exception as e:
-            await event.edit(f"❌ Failed: {e}")
+        except: await event.edit("❌ Failed.")
 
-    # Ghost Reply Logic
+    # THE REAL GHOST REPLY
     if event.is_reply:
         reply_msg = await event.get_reply_message()
-        if reply_msg and reply_msg.fwd_from:
-            # Forward የተደረገው ከ User ከሆነ
-            if reply_msg.fwd_from.from_id:
-                 try:
-                    # User ID ማግኘት (አንዳንድ ጊዜ user_id አንዳንድ ጊዜ just ID ሊሆን ይችላል)
-                    target_id = getattr(reply_msg.fwd_from.from_id, 'user_id', None)
-                    if not target_id:
-                         # ቀጥታ ID ከሆነ
-                         target_id = reply_msg.fwd_from.from_id
-                    
-                    if isinstance(target_id, int):
-                        await client.send_message(target_id, event.message.text)
-                        await event.edit(f"👻 **Ghost Reply:** {event.message.text}")
-                 except Exception as e:
-                    # ስህተት ካለ ዝም ይበል (Saved Messages እንዳይጨናነቅ)
-                    pass
+        target_id = None
+        
+        # ዘዴ 1: ከ Cache ላይ መፈለግ (Privacy ለዘጋ ሰው)
+        if reply_msg.id in reply_cache:
+            target_id = reply_cache[reply_msg.id]
+        
+        # ዘዴ 2: ካልተገኘ፣ የተለመደውን Forward Header መሞከር
+        elif reply_msg.fwd_from:
+             # ID ካለው (Privacy ካልዘጋ)
+             if reply_msg.fwd_from.from_id:
+                 target_id = getattr(reply_msg.fwd_from.from_id, 'user_id', None) or reply_msg.fwd_from.from_id
+
+        # መልሱ ከተገኘ እንላክ
+        if target_id and isinstance(target_id, int):
+            try:
+                await client.send_message(target_id, event.message.text)
+                await event.edit(f"👻 **Sent:** {event.message.text}")
+            except Exception as e:
+                await event.edit(f"❌ Send Error: {e}")
 
 # ---------------------------------------------------------
-# 4. SYSTEM START & SERVER
+# 4. SERVER
 # ---------------------------------------------------------
 
-async def handle_home(request):
-    return web.Response(text="🤖 Super Userbot is Running!")
+async def home(r): return web.Response(text="Super Userbot Running!")
 
-async def handle_download(request):
-    file_id = request.match_info['file_id']
-    if file_id in download_cache:
-        message = download_cache[file_id]
+async def download(r):
+    fid = r.match_info['file_id']
+    if fid in download_cache:
         try:
-            path = await client.download_media(message)
-            filename = os.path.basename(path)
-            with open(path, 'rb') as f:
-                content = f.read()
-            os.remove(path)
-            return web.Response(
-                body=content,
-                headers={
-                    'Content-Disposition': f'attachment; filename="{filename}"',
-                    'Content-Type': 'application/octet-stream'
-                }
-            )
-        except Exception as e:
-            return web.Response(text=f"Stream Error: {e}", status=500)
-    return web.Response(text="Link Expired", status=404)
+            path = await client.download_media(download_cache[fid])
+            if path:
+                with open(path, 'rb') as f: d = f.read()
+                os.remove(path)
+                return web.Response(body=d, headers={'Content-Disposition': f'attachment; filename="{os.path.basename(path)}"'})
+        except: pass
+    return web.Response(text="Error", status=404)
 
 async def main():
-    logger.info("⏳ Starting Services...")
     await client.start()
-    me = await client.get_me()
-    logger.info(f"✅ LOGGED IN AS: {me.first_name} (ID: {me.id})")
-
+    
     app = web.Application()
-    app.router.add_get('/', handle_home)
-    app.router.add_get('/download/{file_id}', handle_download)
+    app.router.add_get('/', home)
+    app.router.add_get('/download/{file_id}', download)
     
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.environ.get("PORT", 8080))
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    logger.info(f"🚀 Web Server running on port {port}")
-
+    
     while True:
         try:
             await client(functions.account.UpdateStatusRequest(offline=False))
             await asyncio.sleep(60)
-        except:
-            await asyncio.sleep(10)
+        except: await asyncio.sleep(10)
 
 if __name__ == '__main__':
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(main())
-    except KeyboardInterrupt:
-        pass
+    try: loop.run_until_complete(main())
+    except: pass
