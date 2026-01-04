@@ -35,6 +35,7 @@ try:
     # AI Setup
     if gemini_key:
         genai.configure(api_key=gemini_key)
+        # ለፍጥነት እና ለእይታ ምርጡ ሞዴል gemini-2.5-flash ነው
         model = genai.GenerativeModel('gemini-2.5-flash')
         logger.info("✅ Gemini AI Connected!")
     else:
@@ -49,49 +50,55 @@ reply_cache = {}
 download_cache = {}
 MY_ID = None  
 MY_KEYWORDS = ["cipher", "CIPHER", "first comment", "biruk", "ብሩክ"] 
+# ለ Identity Thief ማስታወሻ (Original Profile Backup)
+ORIGINAL_PROFILE = {}
 
-# --- SNIPER VARIABLES ---
+# --- SNIPER VARIABLES (ለ Giveaway) ---
 TARGET_CHANNEL_ID = None
 SNIPER_TEXT = None
-SNIPER_MODE = "OFF"
+SNIPER_MODE = "OFF" # "FLASH" (ለፍጥነት) or "QUIZ" (ለጥያቄ)
 
 # ---------------------------------------------------------
-# 2. GIVEAWAY SNIPER COMMANDS
+# 2. GIVEAWAY SNIPER COMMANDS (አዲሱ ጨዋታ)
 # ---------------------------------------------------------
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.monitor"))
 async def set_monitor(event):
+    """አሁን ያለህበትን ቻናል ኢላማ ያደርጋል"""
     global TARGET_CHANNEL_ID
     TARGET_CHANNEL_ID = event.chat_id
     title = event.chat.title if event.chat else str(event.chat_id)
-    await event.delete()
+    await event.delete() # ሚስጥራዊነት
     await client.send_message("me", f"🎯 **Sniper Locked on:** `{title}`\n🆔 `{TARGET_CHANNEL_ID}`")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.win (.*)"))
 async def set_flash_mode(event):
+    """Flash Mode: ጽሁፍ አዘጋጅቶ መጠበቅ (Me, Done, etc)"""
     global SNIPER_MODE, SNIPER_TEXT
     SNIPER_TEXT = event.pattern_match.group(1)
     SNIPER_MODE = "FLASH"
-    await event.delete()
+    await event.delete() # ሚስጥራዊነት
     await client.send_message("me", f"⚡ **Flash Mode ARMED!**\nAuto-Reply: `{SNIPER_TEXT}`")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.quiz"))
 async def set_quiz_mode(event):
+    """Quiz Mode: AI በሰውኛ እና በአጭሩ እንዲመልስ"""
     global SNIPER_MODE
     SNIPER_MODE = "QUIZ"
-    await event.delete()
-    await client.send_message("me", f"🧠 **Quiz Mode ARMED!**")
+    await event.delete() # ሚስጥራዊነት
+    await client.send_message("me", f"🧠 **Quiz Mode ARMED!**\nAI will answer instantly & human-like.")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.stop"))
 async def stop_sniper(event):
+    """Sniping ማቆሚያ"""
     global SNIPER_MODE, TARGET_CHANNEL_ID
     SNIPER_MODE = "OFF"
     TARGET_CHANNEL_ID = None
-    await event.delete()
+    await event.delete() # ሚስጥራዊነት
     await client.send_message("me", "🛑 **Sniper Disengaged.**")
 
 # ---------------------------------------------------------
-# 3. GOD MODE COMMANDS
+# 3. GOD MODE COMMANDS (AI, Art, Info, Voice + NEW FEATURES)
 # ---------------------------------------------------------
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.ai ?(.*)"))
@@ -101,11 +108,13 @@ async def ai_handler(event):
     reply = await event.get_reply_message()
     await event.edit("🧠")
     try:
+        # Vision Mode (ፎቶ ከሆነ)
         if reply and reply.media and reply.photo:
             photo_data = await reply.download_media(file=bytes)
             img = Image.open(io.BytesIO(photo_data))
             prompt = query if query else "Describe this image detail."
             response = model.generate_content([prompt, img])
+        # Text Mode
         else:
             if not query: return await event.edit("❌ Text/Image needed")
             response = model.generate_content(query)
@@ -148,12 +157,15 @@ async def text_to_speech(event):
     text = event.pattern_match.group(1)
     await event.delete()
     try:
+        # አማርኛ እና እንግሊዝኛን ለይቶ ለማወቅ
         lang = 'am' if any("\u1200" <= char <= "\u137F" for char in text) else 'en'
+        
         tts = gTTS(text=text, lang=lang)
         f = io.BytesIO()
         tts.write_to_fp(f)
         f.seek(0)
         
+        # ድምፁን Hacker በሚመስል መልኩ ማወፈር
         sound = AudioSegment.from_file(f, format="mp3")
         new_sample_rate = int(sound.frame_rate * 0.69)
         thick_sound = sound._spawn(sound.raw_data, overrides={'frame_rate': new_sample_rate})
@@ -167,8 +179,84 @@ async def text_to_speech(event):
         await client.send_file(event.chat_id, output, voice_note=True)
     except: pass
 
+# --- FEATURE 2: IDENTITY THIEF (.clone / .revert) ---
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.clone"))
+async def clone_identity(event):
+    global ORIGINAL_PROFILE
+    reply = await event.get_reply_message()
+    if not reply: return await event.edit("❌ Reply to a user!")
+    await event.edit("🎭 **Stealing Identity...**")
+    try:
+        user = await reply.get_sender()
+        me = await client.get_me()
+        me_full = await client(functions.users.GetFullUserRequest(me))
+
+        # Backup Original Info
+        if not ORIGINAL_PROFILE:
+            ORIGINAL_PROFILE = {
+                "first_name": me.first_name,
+                "last_name": me.last_name,
+                "about": me_full.full_user.about,
+                "photo": await client.download_profile_photo("me")
+            }
+
+        # Get Target Info
+        target_full = await client(functions.users.GetFullUserRequest(user))
+        target_about = target_full.full_user.about or ""
+        target_photo = await client.download_profile_photo(user)
+
+        # Apply Cloning
+        await client(functions.account.UpdateProfileRequest(
+            first_name=user.first_name,
+            last_name=user.last_name or "",
+            about=target_about
+        ))
+
+        if target_photo:
+            await client(functions.photos.UploadProfilePhotoRequest(
+                await client.upload_file(target_photo)
+            ))
+            os.remove(target_photo)
+
+        await event.edit(f"🎭 **Identity Stolen:** {user.first_name}")
+    except Exception as e:
+        await event.edit(f"❌ Clone Error: {e}")
+
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.revert"))
+async def revert_identity(event):
+    global ORIGINAL_PROFILE
+    if not ORIGINAL_PROFILE: return await event.edit("❌ No backup found!")
+    await event.edit("🔄 **Reverting...**")
+    try:
+        await client(functions.account.UpdateProfileRequest(
+            first_name=ORIGINAL_PROFILE["first_name"],
+            last_name=ORIGINAL_PROFILE["last_name"] or "",
+            about=ORIGINAL_PROFILE["about"] or ""
+        ))
+        if ORIGINAL_PROFILE["photo"]:
+            await client(functions.photos.UploadProfilePhotoRequest(
+                await client.upload_file(ORIGINAL_PROFILE["photo"])
+            ))
+        ORIGINAL_PROFILE = {}
+        await event.edit("✅ **Identity Restored!**")
+    except Exception as e:
+        await event.edit(f"❌ Revert Error: {e}")
+
+# --- FEATURE 5: WEB SCREENSHOT (.web) ---
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.web (.*)"))
+async def web_screenshot(event):
+    url = event.pattern_match.group(1)
+    await event.edit(f"📸 **Capturing:** `{url}`...")
+    try:
+        # Using a reliable free screenshot API
+        screenshot_url = f"https://image.thum.io/get/width/1200/crop/800/no_redirect/{url}"
+        await client.send_file(event.chat_id, screenshot_url, caption=f"🌐 **Web:** {url}")
+        await event.delete()
+    except Exception as e:
+        await event.edit(f"❌ Web Error: {e}")
+
 # ---------------------------------------------------------
-# 4. UTILITIES
+# 4. UTILITIES (Premium Tools)
 # ---------------------------------------------------------
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.tr"))
@@ -210,34 +298,51 @@ async def speed_link(event):
         await event.edit(f"⚡ `{app_url}/download/{r.id}`")
 
 # ---------------------------------------------------------
-# 5. CORE HANDLER (THE BRAIN - FIX HERE)
+# 5. CORE HANDLER (INCOMING MESSAGES - THE BRAIN)
 # ---------------------------------------------------------
 
 @client.on(events.NewMessage(incoming=True))
 async def incoming_handler(event):
     global MY_ID, SNIPER_MODE
 
-    # --- A. SNIPER LOGIC ---
+    # --- A. SNIPER LOGIC (Giveaway Winner) ---
+    # ይህ ከሁሉም በላይ ቅድሚያ አለው (Priority 1)
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
+        
+        # 1. Flash Mode (Me/Done)
         if SNIPER_MODE == "FLASH" and SNIPER_TEXT:
             try:
+                # ፖስቱ ገና እንደወጣ ይልካል
                 await client.send_message(event.chat_id, SNIPER_TEXT, reply_to=event.id)
                 SNIPER_MODE = "OFF"
                 await client.send_message("me", f"✅ **FLASH SNIPED:** {SNIPER_TEXT}")
             except: pass
             return
+
+        # 2. Quiz Mode (AI Smart Answer)
         elif SNIPER_MODE == "QUIZ" and event.text:
             try:
-                prompt = f"Answer instantly. Shortest answer. No explanation. Q: {event.text}"
+                # Prompt Engineering: AI እንደ ሰው እንዲያስብ እና አጭር መልስ እንዲሰጥ
+                prompt = f"""
+                Task: Answer this quiz question instantly.
+                Rules:
+                1. Give ONLY the direct answer. No explanations.
+                2. If it's a number, just write the number.
+                3. Keep it extremely short (1-3 words max).
+                4. Do NOT use markdown or bold text.
+                5. Act like a human typing fast.
+                Question: {event.text}
+                """
                 response = model.generate_content(prompt)
                 answer = response.text.strip()
+                
                 await client.send_message(event.chat_id, answer, reply_to=event.id)
                 SNIPER_MODE = "OFF"
                 await client.send_message("me", f"✅ **QUIZ SNIPED:** {answer}")
             except: pass
             return
 
-    # --- B. EAVESDROPPER ---
+    # --- B. EAVESDROPPER (Keyword Monitor) ---
     if (event.is_group or event.is_channel) and event.raw_text:
         try:
             for k in MY_KEYWORDS:
@@ -247,14 +352,13 @@ async def incoming_handler(event):
                     break
         except: pass
 
-    # --- C. VAULT BREAKER (FIXED & IMPROVED) ---
-    # የሚጠፋ ፎቶን የመለየት ብቃት ተጨምሯል
+    # --- C. VAULT BREAKER (Anti-Burn Logic) ---
+    # የሚጠፋ ፎቶ (TTL) ካለ፣ አንተ ሳታየው ቦቱ ከጀርባ ያወርደዋል
     is_vanishing = False
     
-    # 1. መደበኛ Timer (TTL)
+    # 1. የድሮው Timer (TTL)
     if event.message.ttl_period:
         is_vanishing = True
-        
     # 2. አዲሱ View Once (Media TTL)
     elif event.media and hasattr(event.media, 'ttl_seconds') and event.media.ttl_seconds:
         is_vanishing = True
@@ -262,41 +366,47 @@ async def incoming_handler(event):
     if is_vanishing:
         try:
             sender = await event.get_sender()
-            name = sender.first_name if sender else "Unknown"
+            sender_name = sender.first_name if sender else "Unknown"
             
-            # ወዲያውኑ ማውረድ (Download to Memory)
+            # ወዲያውኑ ወደ Memory ማውረድ (Disk ላይ ሳይሆን) - ለ Docker እና ለፍጥነት
             f = await event.download_media(file=bytes)
             
             if f:
-                # እንደ አዲስ ፋይል ወደ Saved Messages መላክ
-                # Memory ውስጥ ያለውን Data ወደ File Object መቀየር
+                # Bytes ወደ File Object መቀየር (ለ Telethon እንዲመች)
                 img_file = io.BytesIO(f)
-                img_file.name = "captured_photo.jpg" # ስም መስጠት ግዴታ ነው
+                img_file.name = "captured_media.jpg" # ለቴሌግራም እንደ ፋይል እንዲታይ
                 
+                # ወደ Saved Messages እንደ አዲስ መላክ (Timer የለውም)
                 await client.send_file(
                     "me", 
-                    img_file, 
-                    caption=f"💣 **Captured View-Once**\n👤 From: {name}"
+                    img_file,
+                    caption=f"💣 **Captured View-Once**\n👤 From: {sender_name}"
                 )
+                
+                # Memory ላይ ስለሆነ os.remove ማድረግ አያስፈልግም (ስህተት አይፈጥርም)
+                
         except Exception as e:
-            logger.error(f"Vault Fail: {e}")
-        return
+            logger.error(f"Vault Error: {e}")
+        return # የጠፋ ፎቶ ከሆነ ወደ Ghost Mode መሄድ የለበትም
 
-    # --- D. GHOST MODE ---
+    # --- D. GHOST MODE (Forwarder) ---
     if event.is_private and not event.is_group and not event.is_channel:
         try:
             if MY_ID and event.sender_id != MY_ID:
+                # ቦቱ የላከውን መልእክት ወደ Saved Messages
                 fwd = await client.forward_messages("me", event.message)
+                # መታወቂያውን Cache ማድረግ (ለ Reply)
                 if fwd: reply_cache[fwd.id] = event.sender_id
                 if len(reply_cache) > 500: reply_cache.clear()
         except: pass
 
 # ---------------------------------------------------------
-# 6. SAVED MESSAGES HANDLER
+# 6. SAVED MESSAGES HANDLER (Ghost Reply & Bypass)
 # ---------------------------------------------------------
 
 @client.on(events.NewMessage(chats="me"))
 async def saved_msg_actions(event):
+    # Restricted Channel Saver
     if event.text and "t.me/c/" in event.text and not event.is_reply:
         try:
             await event.edit("🔓")
@@ -312,11 +422,15 @@ async def saved_msg_actions(event):
                     await event.delete()
         except: await event.edit("❌")
 
+    # Ghost Reply
     if event.is_reply:
         reply_msg = await event.get_reply_message()
         target_id = None
+        
+        # ከ Cache ይፈልጋል
         if reply_msg.id in reply_cache:
             target_id = reply_cache[reply_msg.id]
+        # ከ Forward Header ይፈልጋል
         elif reply_msg.fwd_from:
              if reply_msg.fwd_from.from_id:
                  target_id = getattr(reply_msg.fwd_from.from_id, 'user_id', None) or reply_msg.fwd_from.from_id
@@ -331,7 +445,7 @@ async def saved_msg_actions(event):
 # 7. SERVER & STARTUP
 # ---------------------------------------------------------
 
-async def home(r): return web.Response(text="God Mode Active!")
+async def home(r): return web.Response(text="Bot Active!")
 
 async def download(r):
     fid = r.match_info['file_id']
