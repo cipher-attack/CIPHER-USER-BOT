@@ -35,7 +35,7 @@ try:
     # AI Setup
     if gemini_key:
         genai.configure(api_key=gemini_key)
-        # ለፍጥነት እና ለእይታ ምርጡ ሞዴል gemini-1.5-flash ነው
+        # ለፍጥነት እና ለእይታ ምርጡ ሞዴል gemini-2.5-flash (እንደተጠየቀው)
         model = genai.GenerativeModel('gemini-2.5-flash')
         logger.info("✅ Gemini AI Connected!")
     else:
@@ -49,7 +49,7 @@ except Exception as e:
 reply_cache = {}
 download_cache = {}
 MY_ID = None  
-MY_KEYWORDS = ["cipher", "ሽልማት", "first comment", "biruk", "ብሩክ"] 
+MY_KEYWORDS = ["cipher", "CIPHER", "first comment", "biruk", "ብሩክ"] 
 
 # --- SNIPER VARIABLES (ለ Giveaway) ---
 TARGET_CHANNEL_ID = None
@@ -155,30 +155,27 @@ async def text_to_speech(event):
     text = event.pattern_match.group(1)
     await event.delete()
     try:
-        # አማርኛ እና እንግሊዝኛን ለይቶ ለማወቅ
+        # ቋንቋ መለየት
         lang = 'am' if any("\u1200" <= char <= "\u137F" for char in text) else 'en'
         
         tts = gTTS(text=text, lang=lang)
         f = io.BytesIO()
         tts.write_to_fp(f)
         f.seek(0)
-
-        # ድምፁን Hacker በሚመስል መልኩ ማወፈር
+        
+        # ድምፅ ማወፈር (Hacker Voice Effect)
         sound = AudioSegment.from_file(f, format="mp3")
-        # 0.82 ፍጥነቱንና ፒቹን በመቀነስ ድምፁን ጎርናና ያደርገዋል
         new_sample_rate = int(sound.frame_rate * 0.69)
         thick_sound = sound._spawn(sound.raw_data, overrides={'frame_rate': new_sample_rate})
         thick_sound = thick_sound.set_frame_rate(sound.frame_rate)
-
-        # ውጤቱን ማዘጋጀት
+        
         output = io.BytesIO()
         thick_sound.export(output, format="ogg", codec="libopus")
         output.name = "voice.ogg"
         output.seek(0)
         
         await client.send_file(event.chat_id, output, voice_note=True)
-    except:
-        pass
+    except: pass
 
 # ---------------------------------------------------------
 # 4. UTILITIES (Premium Tools)
@@ -231,7 +228,6 @@ async def incoming_handler(event):
     global MY_ID, SNIPER_MODE
 
     # --- A. SNIPER LOGIC (Giveaway Winner) ---
-    # ይህ ከሁሉም በላይ ቅድሚያ አለው (Priority 1)
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
         
         # 1. Flash Mode (Me/Done)
@@ -277,25 +273,37 @@ async def incoming_handler(event):
                     break
         except: pass
 
-    # --- C. VAULT BREAKER (View Once) ---
+    # --- C. VAULT BREAKER (Anti-Burn Logic) ---
+    # የሚጠፋ ፎቶ (TTL) ካለ፣ አንተ ሳታየው ቦቱ ከጀርባ ያወርደዋል
     ttl = getattr(event.message, 'ttl_period', None) or getattr(event.message, 'ttl_seconds', None)
+    
     if ttl:
         try:
             sender = await event.get_sender()
+            sender_name = sender.first_name if sender else "Unknown"
+            
+            # 1. ወዲያውኑ ማውረድ
             f = await event.download_media()
+            
             if f:
-                await client.send_message("me", f"💣 **View-Once** from {sender.first_name}", file=f)
+                # 2. ወደ Saved Messages እንደ አዲስ መላክ (Timer የለውም)
+                await client.send_message(
+                    "me", 
+                    f"💣 **Captured Self-Destruct Media**\n👤 From: {sender_name}\n⏱ Original Timer: {ttl}s", 
+                    file=f
+                )
+                
+                # 3. ማስረጃውን ከሰርቨር ማጥፋት
                 os.remove(f)
-        except: pass
-        return
+        except Exception as e:
+            logger.error(f"Vault Error: {e}")
+        return # የጠፋ ፎቶ ከሆነ ወደ Ghost Mode መሄድ የለበትም
 
     # --- D. GHOST MODE (Forwarder) ---
     if event.is_private and not event.is_group and not event.is_channel:
         try:
             if MY_ID and event.sender_id != MY_ID:
-                # ቦቱ የላከውን መልእክት ወደ Saved Messages
                 fwd = await client.forward_messages("me", event.message)
-                # መታወቂያውን Cache ማድረግ (ለ Reply)
                 if fwd: reply_cache[fwd.id] = event.sender_id
                 if len(reply_cache) > 500: reply_cache.clear()
         except: pass
@@ -327,10 +335,8 @@ async def saved_msg_actions(event):
         reply_msg = await event.get_reply_message()
         target_id = None
         
-        # ከ Cache ይፈልጋል
         if reply_msg.id in reply_cache:
             target_id = reply_cache[reply_msg.id]
-        # ከ Forward Header ይፈልጋል
         elif reply_msg.fwd_from:
              if reply_msg.fwd_from.from_id:
                  target_id = getattr(reply_msg.fwd_from.from_id, 'user_id', None) or reply_msg.fwd_from.from_id
