@@ -118,7 +118,7 @@ async def ai_handler(event):
         else:
             if not query: return await event.edit("❌ Text/Image needed")
             response = model.generate_content(query)
-        
+
         text = response.text
         if len(text) > 4000: text = text[:4000] + "..."
         await event.edit(f"🤖 **AI:**\n\n{text}")
@@ -159,27 +159,27 @@ async def text_to_speech(event):
     try:
         # አማርኛ እና እንግሊዝኛን ለይቶ ለማወቅ
         lang = 'am' if any("\u1200" <= char <= "\u137F" for char in text) else 'en'
-        
+
         tts = gTTS(text=text, lang=lang)
         f = io.BytesIO()
         tts.write_to_fp(f)
         f.seek(0)
-        
+
         # ድምፁን Hacker በሚመስል መልኩ ማወፈር
         sound = AudioSegment.from_file(f, format="mp3")
         new_sample_rate = int(sound.frame_rate * 0.69)
         thick_sound = sound._spawn(sound.raw_data, overrides={'frame_rate': new_sample_rate})
         thick_sound = thick_sound.set_frame_rate(sound.frame_rate)
-        
+
         output = io.BytesIO()
         thick_sound.export(output, format="ogg", codec="libopus")
         output.name = "voice.ogg"
         output.seek(0)
-        
+
         await client.send_file(event.chat_id, output, voice_note=True)
     except: pass
 
-# --- FEATURE 2: IDENTITY THIEF (.clone / .revert) ---
+# --- FEATURE 2: IDENTITY THIEF (.clone / .revert) - FIXED ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.clone"))
 async def clone_identity(event):
     global ORIGINAL_PROFILE
@@ -191,32 +191,37 @@ async def clone_identity(event):
         me = await client.get_me()
         me_full = await client(functions.users.GetFullUserRequest(me))
 
-        # Backup Original Info
+        # Backup Original Info (አንዴ ብቻ)
         if not ORIGINAL_PROFILE:
+            # የራስን ፎቶ አውርዶ ማቆየት
+            my_photo = await client.download_profile_photo("me", file="my_original_photo.jpg")
             ORIGINAL_PROFILE = {
                 "first_name": me.first_name,
                 "last_name": me.last_name,
                 "about": me_full.full_user.about,
-                "photo": await client.download_profile_photo("me")
+                "photo_path": my_photo # Path እንይዛለን
             }
 
         # Get Target Info
         target_full = await client(functions.users.GetFullUserRequest(user))
         target_about = target_full.full_user.about or ""
-        target_photo = await client.download_profile_photo(user)
+        
+        # የሰውዬውን ፎቶ አውርዶ መቀየር
+        target_photo = await client.download_profile_photo(user, file="target_photo.jpg")
 
-        # Apply Cloning
+        # Apply Cloning (Text)
         await client(functions.account.UpdateProfileRequest(
             first_name=user.first_name,
             last_name=user.last_name or "",
             about=target_about
         ))
 
+        # Apply Cloning (Photo)
         if target_photo:
-            await client(functions.photos.UploadProfilePhotoRequest(
-                await client.upload_file(target_photo)
-            ))
-            os.remove(target_photo)
+            # FIX: UploadFileRequest በቀጥታ መጠቀም
+            uploaded = await client.upload_file(target_photo)
+            await client(functions.photos.UploadProfilePhotoRequest(file=uploaded))
+            os.remove(target_photo) # ጨርሰን ማጥፋት
 
         await event.edit(f"🎭 **Identity Stolen:** {user.first_name}")
     except Exception as e:
@@ -228,15 +233,21 @@ async def revert_identity(event):
     if not ORIGINAL_PROFILE: return await event.edit("❌ No backup found!")
     await event.edit("🔄 **Reverting...**")
     try:
+        # Restore Text
         await client(functions.account.UpdateProfileRequest(
             first_name=ORIGINAL_PROFILE["first_name"],
             last_name=ORIGINAL_PROFILE["last_name"] or "",
             about=ORIGINAL_PROFILE["about"] or ""
         ))
-        if ORIGINAL_PROFILE["photo"]:
-            await client(functions.photos.UploadProfilePhotoRequest(
-                await client.upload_file(ORIGINAL_PROFILE["photo"])
-            ))
+        
+        # Restore Photo
+        photo_path = ORIGINAL_PROFILE.get("photo_path")
+        if photo_path and os.path.exists(photo_path):
+            uploaded = await client.upload_file(photo_path)
+            await client(functions.photos.UploadProfilePhotoRequest(file=uploaded))
+            # ፎቶውን አናጠፋውም (ለቀጣይ Revert እንዲሆን)
+            
+        # ማስታወሻውን ማጽዳት
         ORIGINAL_PROFILE = {}
         await event.edit("✅ **Identity Restored!**")
     except Exception as e:
