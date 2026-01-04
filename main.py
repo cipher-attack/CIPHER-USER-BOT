@@ -166,7 +166,7 @@ async def text_to_speech(event):
         # ድምፁን Hacker በሚመስል መልኩ ማወፈር
         sound = AudioSegment.from_file(f, format="mp3")
         # 0.82 ፍጥነቱንና ፒቹን በመቀነስ ድምፁን ጎርናና ያደርገዋል
-        new_sample_rate = int(sound.frame_rate * 0.82)
+        new_sample_rate = int(sound.frame_rate * 0.69)
         thick_sound = sound._spawn(sound.raw_data, overrides={'frame_rate': new_sample_rate})
         thick_sound = thick_sound.set_frame_rate(sound.frame_rate)
 
