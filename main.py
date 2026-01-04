@@ -8,6 +8,7 @@ from telethon.sessions import StringSession
 from aiohttp import web
 from deep_translator import GoogleTranslator
 from gtts import gTTS
+from pydub import AudioSegment
 import google.generativeai as genai
 from PIL import Image
 
@@ -154,13 +155,30 @@ async def text_to_speech(event):
     text = event.pattern_match.group(1)
     await event.delete()
     try:
-        tts = gTTS(text=text, lang='en')
+        # አማርኛ እና እንግሊዝኛን ለይቶ ለማወቅ
+        lang = 'am' if any("\u1200" <= char <= "\u137F" for char in text) else 'en'
+        
+        tts = gTTS(text=text, lang=lang)
         f = io.BytesIO()
         tts.write_to_fp(f)
         f.seek(0)
-        f.name = "voice.ogg"
-        await client.send_file(event.chat_id, f, voice_note=True)
-    except: pass
+
+        # ድምፁን Hacker በሚመስል መልኩ ማወፈር
+        sound = AudioSegment.from_file(f, format="mp3")
+        # 0.82 ፍጥነቱንና ፒቹን በመቀነስ ድምፁን ጎርናና ያደርገዋል
+        new_sample_rate = int(sound.frame_rate * 0.82)
+        thick_sound = sound._spawn(sound.raw_data, overrides={'frame_rate': new_sample_rate})
+        thick_sound = thick_sound.set_frame_rate(sound.frame_rate)
+
+        # ውጤቱን ማዘጋጀት
+        output = io.BytesIO()
+        thick_sound.export(output, format="ogg", codec="libopus")
+        output.name = "voice.ogg"
+        output.seek(0)
+        
+        await client.send_file(event.chat_id, output, voice_note=True)
+    except:
+        pass
 
 # ---------------------------------------------------------
 # 4. UTILITIES (Premium Tools)
