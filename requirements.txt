@@ -4,3 +4,4 @@ deep-translator
 gTTS
 google-generativeai
 Pillow
+pydub
