@@ -58,7 +58,7 @@ SNIPER_TEXT = None
 SNIPER_MODE = "OFF" # "FLASH" (ለፍጥነት) or "QUIZ" (ለጥያቄ)
 
 # ---------------------------------------------------------
-# 2. GIVEAWAY SNIPER COMMANDS
+# 2. GIVEAWAY SNIPER COMMANDS (አዲሱ ጨዋታ)
 # ---------------------------------------------------------
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.monitor"))
@@ -166,7 +166,7 @@ async def text_to_speech(event):
         
         # ድምፁን Hacker በሚመስል መልኩ ማወፈር
         sound = AudioSegment.from_file(f, format="mp3")
-        new_sample_rate = int(sound.frame_rate * 0.70)
+        new_sample_rate = int(sound.frame_rate * 0.71)
         thick_sound = sound._spawn(sound.raw_data, overrides={'frame_rate': new_sample_rate})
         thick_sound = thick_sound.set_frame_rate(sound.frame_rate)
         
@@ -178,7 +178,7 @@ async def text_to_speech(event):
         await client.send_file(event.chat_id, output, voice_note=True)
     except: pass
 
-# --- FEATURE 2: IDENTITY THIEF (.clone / .revert) - FIXED ---
+# --- FEATURE 2: IDENTITY THIEF (.clone / .revert) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.clone"))
 async def clone_identity(event):
     global ORIGINAL_PROFILE
@@ -192,23 +192,21 @@ async def clone_identity(event):
 
         # Backup Original Info (አንዴ ብቻ)
         if not ORIGINAL_PROFILE:
-            # የራስን ፎቶ አውርዶ ማቆየት (Memory ላይ)
-            # Memory ላይ ማውረድ file system ችግርን ይቀርፋል
-            my_photo_bytes = await client.download_profile_photo("me", file=bytes)
-            
+            # የራስን ፎቶ አውርዶ ማቆየት
+            my_photo = await client.download_profile_photo("me", file="my_original_photo.jpg")
             ORIGINAL_PROFILE = {
                 "first_name": me.first_name,
                 "last_name": me.last_name,
                 "about": me_full.full_user.about,
-                "photo_bytes": my_photo_bytes # Bytes እንይዛለን
+                "photo_path": my_photo # Path እንይዛለን
             }
 
         # Get Target Info
         target_full = await client(functions.users.GetFullUserRequest(user))
         target_about = target_full.full_user.about or ""
         
-        # የሰውዬውን ፎቶ አውርዶ መቀየር (Memory)
-        target_photo_bytes = await client.download_profile_photo(user, file=bytes)
+        # የሰውዬውን ፎቶ አውርዶ መቀየር
+        target_photo = await client.download_profile_photo(user, file="target_photo.jpg")
 
         # Apply Cloning (Text)
         await client(functions.account.UpdateProfileRequest(
@@ -218,13 +216,11 @@ async def clone_identity(event):
         ))
 
         # Apply Cloning (Photo)
-        if target_photo_bytes:
-            # Bytes ወደ File Object
-            f = io.BytesIO(target_photo_bytes)
-            f.name = "clone.jpg"
-            
-            uploaded = await client.upload_file(f)
+        if target_photo:
+            # FIX: UploadFileRequest በቀጥታ መጠቀም
+            uploaded = await client.upload_file(target_photo)
             await client(functions.photos.UploadProfilePhotoRequest(file=uploaded))
+            os.remove(target_photo) # ጨርሰን ማጥፋት
 
         await event.edit(f"🎭 Identity Stolen: {user.first_name}")
     except Exception as e:
@@ -244,11 +240,9 @@ async def revert_identity(event):
         ))
         
         # Restore Photo
-        photo_bytes = ORIGINAL_PROFILE.get("photo_bytes")
-        if photo_bytes:
-            f = io.BytesIO(photo_bytes)
-            f.name = "revert.jpg"
-            uploaded = await client.upload_file(f)
+        photo_path = ORIGINAL_PROFILE.get("photo_path")
+        if photo_path and os.path.exists(photo_path):
+            uploaded = await client.upload_file(photo_path)
             await client(functions.photos.UploadProfilePhotoRequest(file=uploaded))
             
         # ማስታወሻውን ማጽዳት
@@ -299,7 +293,7 @@ async def premium_emoji(event):
     await event.delete()
     m = {"haha":"laugh","fire":"hot","sad":"cry","lol":"laugh"}
     try:
-        async for x in client.iter_messages("AnimatedStickers", search=m.get(name,name), limit=1):
+        async for x in client.iter_messages("https://t.me/stickerXtara", search=m.get(name,name), limit=1):
             if x.media:
                 await client.send_file(event.chat_id, x.media)
                 return
@@ -312,6 +306,39 @@ async def speed_link(event):
         download_cache[str(r.id)] = r
         await event.edit(f"⚡ {app_url}/download/{r.id}")
 
+# --- LINK BYPASS (TROJAN HORSE) - FIXED ---
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.bl (.*)"))
+async def bypass_link(event):
+    """
+    Usage: .bl t.me/mychannel Join
+    Logic: Loading -> Delay -> Edit to Invisible Link
+    """
+    args = event.pattern_match.group(1).split(" ", 1)
+    link = args[0]
+    text = args[1] if len(args) > 1 else "✨ Open Link ✨"
+    
+    # 1. Loading (Trojan)
+    await event.edit("▓▒░ LOADING...")
+    
+    # 2. Delay (Wait for Bot to scan)
+    await asyncio.sleep(3) 
+    
+    # 3. Edit (Attack)
+    try:
+        # link_preview=False መደረግ አለበት!
+        await event.edit(f"[{text}]({link})", link_preview=False)
+    except: await event.edit("❌ Failed")
+
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.qrl (.*)"))
+async def qr_link(event):
+    link = event.pattern_match.group(1)
+    await event.edit("🎨")
+    try:
+        qr = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={link}"
+        await client.send_file(event.chat_id, qr, caption="📱 Scan to Join!")
+        await event.delete()
+    except: await event.edit("❌")
+
 # ---------------------------------------------------------
 # 5. CORE HANDLER (INCOMING MESSAGES)
 # ---------------------------------------------------------
@@ -321,13 +348,11 @@ async def incoming_handler(event):
     global MY_ID, SNIPER_MODE
 
     # --- A. SNIPER LOGIC (Giveaway Winner) ---
-    # ይህ ከሁሉም በላይ ቅድሚያ አለው (Priority 1)
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
         
         # 1. Flash Mode (Me/Done)
         if SNIPER_MODE == "FLASH" and SNIPER_TEXT:
             try:
-                # ፖስቱ ገና እንደወጣ ይልካል
                 await client.send_message(event.chat_id, SNIPER_TEXT, reply_to=event.id)
                 SNIPER_MODE = "OFF"
                 await client.send_message("me", f"✅ FLASH SNIPED: {SNIPER_TEXT}")
