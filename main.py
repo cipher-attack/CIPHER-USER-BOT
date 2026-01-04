@@ -35,7 +35,7 @@ try:
     # AI Setup
     if gemini_key:
         genai.configure(api_key=gemini_key)
-        # ለፍጥነት እና ለእይታ ምርጡ ሞዴል gemini-2.5-flash (እንደተጠየቀው)
+        # ለፍጥነት እና ለእይታ ምርጡ ሞዴል gemini-2.5-flash ነው
         model = genai.GenerativeModel('gemini-2.5-flash')
         logger.info("✅ Gemini AI Connected!")
     else:
@@ -49,7 +49,7 @@ except Exception as e:
 reply_cache = {}
 download_cache = {}
 MY_ID = None  
-MY_KEYWORDS = ["cipher", "CIPHER", "first comment", "biruk", "ብሩክ"] 
+MY_KEYWORDS = ["cipher", "ሽልማት", "first comment", "biruk", "ብሩክ"] 
 
 # --- SNIPER VARIABLES (ለ Giveaway) ---
 TARGET_CHANNEL_ID = None
@@ -116,7 +116,7 @@ async def ai_handler(event):
         else:
             if not query: return await event.edit("❌ Text/Image needed")
             response = model.generate_content(query)
-        
+
         text = response.text
         if len(text) > 4000: text = text[:4000] + "..."
         await event.edit(f"🤖 **AI:**\n\n{text}")
@@ -155,27 +155,30 @@ async def text_to_speech(event):
     text = event.pattern_match.group(1)
     await event.delete()
     try:
-        # ቋንቋ መለየት
+        # አማርኛ እና እንግሊዝኛን ለይቶ ለማወቅ
         lang = 'am' if any("\u1200" <= char <= "\u137F" for char in text) else 'en'
-        
+
         tts = gTTS(text=text, lang=lang)
         f = io.BytesIO()
         tts.write_to_fp(f)
         f.seek(0)
-        
-        # ድምፅ ማወፈር (Hacker Voice Effect)
+
+        # ድምፁን Hacker በሚመስል መልኩ ማወፈር
         sound = AudioSegment.from_file(f, format="mp3")
+        # 0.82 ፍጥነቱንና ፒቹን በመቀነስ ድምፁን ጎርናና ያደርገዋል
         new_sample_rate = int(sound.frame_rate * 0.69)
         thick_sound = sound._spawn(sound.raw_data, overrides={'frame_rate': new_sample_rate})
         thick_sound = thick_sound.set_frame_rate(sound.frame_rate)
-        
+
+        # ውጤቱን ማዘጋጀት
         output = io.BytesIO()
         thick_sound.export(output, format="ogg", codec="libopus")
         output.name = "voice.ogg"
         output.seek(0)
-        
+
         await client.send_file(event.chat_id, output, voice_note=True)
-    except: pass
+    except:
+        pass
 
 # ---------------------------------------------------------
 # 4. UTILITIES (Premium Tools)
@@ -228,8 +231,9 @@ async def incoming_handler(event):
     global MY_ID, SNIPER_MODE
 
     # --- A. SNIPER LOGIC (Giveaway Winner) ---
+    # ይህ ከሁሉም በላይ ቅድሚያ አለው (Priority 1)
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
-        
+
         # 1. Flash Mode (Me/Done)
         if SNIPER_MODE == "FLASH" and SNIPER_TEXT:
             try:
@@ -256,7 +260,7 @@ async def incoming_handler(event):
                 """
                 response = model.generate_content(prompt)
                 answer = response.text.strip()
-                
+
                 await client.send_message(event.chat_id, answer, reply_to=event.id)
                 SNIPER_MODE = "OFF"
                 await client.send_message("me", f"✅ **QUIZ SNIPED:** {answer}")
@@ -303,7 +307,9 @@ async def incoming_handler(event):
     if event.is_private and not event.is_group and not event.is_channel:
         try:
             if MY_ID and event.sender_id != MY_ID:
+                # ቦቱ የላከውን መልእክት ወደ Saved Messages
                 fwd = await client.forward_messages("me", event.message)
+                # መታወቂያውን Cache ማድረግ (ለ Reply)
                 if fwd: reply_cache[fwd.id] = event.sender_id
                 if len(reply_cache) > 500: reply_cache.clear()
         except: pass
@@ -334,9 +340,11 @@ async def saved_msg_actions(event):
     if event.is_reply:
         reply_msg = await event.get_reply_message()
         target_id = None
-        
+
+        # ከ Cache ይፈልጋል
         if reply_msg.id in reply_cache:
             target_id = reply_cache[reply_msg.id]
+        # ከ Forward Header ይፈልጋል
         elif reply_msg.fwd_from:
              if reply_msg.fwd_from.from_id:
                  target_id = getattr(reply_msg.fwd_from.from_id, 'user_id', None) or reply_msg.fwd_from.from_id
@@ -369,7 +377,7 @@ async def main():
     global MY_ID
     logger.info("⏳ Starting...")
     await client.start()
-    
+
     me = await client.get_me()
     MY_ID = me.id
     logger.info(f"✅ LOGGED IN AS: {me.first_name} (ID: {MY_ID})")
@@ -377,13 +385,13 @@ async def main():
     app = web.Application()
     app.router.add_get('/', home)
     app.router.add_get('/download/{file_id}', download)
-    
+
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.environ.get("PORT", 8080))
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    
+
     while True:
         try:
             await client(functions.account.UpdateStatusRequest(offline=False))
