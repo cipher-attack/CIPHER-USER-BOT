@@ -1,13 +1,15 @@
 import os
 import asyncio
 import logging
-import io  # ለ Voice Note ያስፈልጋል
+import io
+import random
 from telethon import TelegramClient, events, functions, types
 from telethon.sessions import StringSession
 from aiohttp import web
 from deep_translator import GoogleTranslator
-from gtts import gTTS  # ለ Voice
-import google.generativeai as genai  # ለ AI
+from gtts import gTTS
+import google.generativeai as genai
+from PIL import Image  # ለ AI Vision (ፎቶ እንዲያይ)
 
 # ---------------------------------------------------------
 # 1. SETUP & CONFIGURATION
@@ -20,7 +22,7 @@ api_id = os.environ.get("API_ID")
 api_hash = os.environ.get("API_HASH")
 session_string = os.environ.get("SESSION")
 app_url = os.environ.get("RENDER_EXTERNAL_URL", "http://0.0.0.0:8080")
-gemini_key = os.environ.get("GEMINI_KEY") # አዲሱ የ AI ቁልፍ
+gemini_key = os.environ.get("GEMINI_KEY")
 
 if not api_id or not api_hash or not session_string:
     logger.error("❌ Error: Credentials missing!")
@@ -28,15 +30,16 @@ if not api_id or not api_hash or not session_string:
 
 try:
     client = TelegramClient(StringSession(session_string), int(api_id), api_hash)
-    
-    # AI ማዋቀር (Gemini Setup)
+
+    # AI Setup (Vision Model)
     if gemini_key:
         genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        logger.info("✅ Gemini AI Connected!")
+        # 1.5-flash ፎቶ ማየት ይችላል እና ፈጣን ነው
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        logger.info("✅ Gemini Vision AI Connected!")
     else:
         logger.warning("⚠️ GEMINI_KEY missing. AI features will not work.")
-        
+
 except Exception as e:
     logger.error(f"❌ Init Error: {e}")
     exit(1)
@@ -45,52 +48,119 @@ except Exception as e:
 reply_cache = {}
 download_cache = {}
 MY_ID = None  
-# አንተን የሚጠሩበት ስሞች (Eavesdropper Keywords) - እዚህ ጋር ስምህን ጨምር
-MY_KEYWORDS = ["cipher attack", "Cipher", "hacking", "የፈጠነ", "ብሩክ"] 
+MY_KEYWORDS = ["Melaku", "Bro", "Admin", "አድሚን", "መላኩ"] # ስምህን እዚህ አሻሽል
 
 # ---------------------------------------------------------
-# 2. GOD MODE FEATURES (AI & Voice) - አዲስ የተጨመሩ
+# 2. SINGULARITY FEATURES (Vision, Art, Profiler, Voice)
 # ---------------------------------------------------------
 
-# A. THE AI CLONE (.ai [question])
-@client.on(events.NewMessage(outgoing=True, pattern=r"^\.ai (.*)"))
-async def ask_ai(event):
+# A. THE ALL-SEEING EYE (ፎቶ የሚያየው AI)
+# አጠቃቀም: .ai [ጥያቄ] (ወይም ፎቶ Reply አድርገህ .ai ይሄ ምንድን ነው?)
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.ai ?(.*)"))
+async def ai_handler(event):
     if not gemini_key:
-        await event.edit("❌ Gemini Key is missing in Render settings!")
+        await event.edit("❌ Gemini Key Missing!")
         return
+
     query = event.pattern_match.group(1)
+    reply = await event.get_reply_message()
+    
     await event.edit("🧠 **Thinking...**")
+    
     try:
-        response = model.generate_content(query)
+        # 1. ፎቶ ካለው (Vision Mode)
+        if reply and reply.media and reply.photo:
+            await event.edit("👁️ **Analyzing Image...**")
+            # ፎቶውን ወደ memory ማውረድ
+            photo_data = await reply.download_media(file=bytes)
+            img = Image.open(io.BytesIO(photo_data))
+            
+            # ለ AI መላክ (ፎቶ + ጥያቄ)
+            prompt = query if query else "Describe this image in detail."
+            response = model.generate_content([prompt, img])
+        
+        # 2. ጽሁፍ ብቻ ከሆነ (Text Mode)
+        else:
+            if not query:
+                await event.edit("❌ Write something or reply to a photo!")
+                return
+            response = model.generate_content(query)
+
+        # ውጤት
         text = response.text
-        # መልሱ በጣም ከረዘመ
         if len(text) > 4000: text = text[:4000] + "..."
-        await event.edit(f"🤖 **AI Answer:**\n\n{text}")
+        await event.edit(f"🤖 **AI:**\n\n{text}")
+
     except Exception as e:
         await event.edit(f"❌ AI Error: {e}")
 
-# B. THE VENTRILOQUIST (.say [text])
+# B. THE ARTIST (.img [prompt])
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.img (.*)"))
+async def generate_image(event):
+    prompt = event.pattern_match.group(1)
+    await event.edit(f"🎨 **Painting:** `{prompt}`...")
+    
+    try:
+        # Pollinations AI (Free Art Generation)
+        encoded_prompt = prompt.replace(" ", "%20")
+        style = random.choice(["cinematic", "cyberpunk", "anime", "photorealistic"])
+        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}%20{style}"
+        
+        await client.send_file(event.chat_id, url, caption=f"🎨 **Art:** {prompt}")
+        await event.delete()
+    except Exception as e:
+        await event.edit(f"❌ Art Error: {e}")
+
+# C. THE PROFILER (.info)
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.info"))
+async def user_info(event):
+    reply = await event.get_reply_message()
+    if not reply:
+        await event.edit("❌ Reply to a user!")
+        return
+    
+    await event.edit("🕵️ **Scanning User...**")
+    try:
+        user = await reply.get_sender()
+        info_text = f"👤 **USER DOSSIER**\n"
+        info_text += f"🆔 **ID:** `{user.id}`\n"
+        info_text += f"🗣️ **Name:** {user.first_name} {user.last_name if user.last_name else ''}\n"
+        info_text += f"🔗 **Username:** @{user.username if user.username else 'None'}\n"
+        info_text += f"🤖 **Bot:** {'Yes' if user.bot else 'No'}\n"
+        info_text += f"💎 **Premium:** {'Yes' if user.premium else 'No'}\n"
+        
+        # የፕሮፋይል ፎቶ ማውረድ
+        photo = await client.download_profile_photo(user.id)
+        
+        if photo:
+            await client.send_file(event.chat_id, photo, caption=info_text)
+            os.remove(photo)
+            await event.delete()
+        else:
+            await event.edit(info_text)
+
+    except Exception as e:
+        await event.edit(f"❌ Scan Error: {e}")
+
+# D. THE VENTRILOQUIST (.say [text])
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.say (.*)"))
 async def text_to_speech(event):
     text = event.pattern_match.group(1)
-    await event.delete() # ጽሁፉን እናጥፋው
+    await event.delete()
     try:
-        # ድምጽ ማመንጨት
         tts = gTTS(text=text, lang='en') 
         voice_file = io.BytesIO()
         tts.write_to_fp(voice_file)
         voice_file.seek(0)
-        voice_file.name = "voice.ogg" # እንደ Voice Note
-        
+        voice_file.name = "voice.ogg"
         await client.send_file(event.chat_id, voice_file, voice_note=True)
     except Exception as e:
         await client.send_message("me", f"❌ TTS Error: {e}")
 
 # ---------------------------------------------------------
-# 3. PREMIUM FEATURES (Existing)
+# 3. UTILITIES (Translator, Emoji, Link)
 # ---------------------------------------------------------
 
-# C. TRANSLATOR
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.tr"))
 async def translate_reply(event):
     reply = await event.get_reply_message()
@@ -114,7 +184,6 @@ async def auto_translate(event):
                 await event.edit(tr)
         except: pass
 
-# D. PREMIUM EMOJI
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.(haha|love|sad|fire|wow|cry|lol)"))
 async def premium_emoji(event):
     name = event.pattern_match.group(1)
@@ -128,7 +197,6 @@ async def premium_emoji(event):
                 return
     except: pass
 
-# E. SPEED LINK
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.link"))
 async def speed_link(event):
     reply = await event.get_reply_message()
@@ -149,14 +217,12 @@ async def speed_link(event):
 async def incoming_handler(event):
     global MY_ID
     
-    # 1. THE EAVESDROPPER (አዲስ - የስም ጠለፋ)
-    # ግሩፕ ውስጥ ከሆነ እና ስምህ ከተጠራ ወደ Saved Messages ይልካል
+    # 1. THE EAVESDROPPER (Eavesdropper)
     if (event.is_group or event.is_channel) and event.raw_text:
         try:
             for keyword in MY_KEYWORDS:
                 if keyword.lower() in event.raw_text.lower():
                     chat_title = event.chat.title if event.chat else "Group"
-                    # የግሩፑን ሊንክ ማዘጋጀት
                     link = f"https://t.me/c/{str(event.chat_id).replace('-100', '')}/{event.id}"
                     alert_text = f"🚨 **MENTION ALERT!**\n📍 **{chat_title}**\n💬: {event.raw_text}\n🔗 [Go to Message]({link})"
                     await client.send_message("me", alert_text, link_preview=False)
