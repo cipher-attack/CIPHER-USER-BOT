@@ -35,7 +35,7 @@ try:
     if gemini_key:
         genai.configure(api_key=gemini_key)
         # ለፍጥነት እና ለእይታ ምርጡ ሞዴል gemini-1.5-flash ነው
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         logger.info("✅ Gemini AI Connected!")
     else:
         logger.warning("⚠️ GEMINI_KEY missing. AI features will not work.")
@@ -48,7 +48,7 @@ except Exception as e:
 reply_cache = {}
 download_cache = {}
 MY_ID = None  
-MY_KEYWORDS = ["cipher", "CIPHER", "first comment", "biruk", "ብሩክ"] 
+MY_KEYWORDS = ["cipher", "ሽልማት", "first comment", "biruk", "ብሩክ"] 
 
 # --- SNIPER VARIABLES (ለ Giveaway) ---
 TARGET_CHANNEL_ID = None
