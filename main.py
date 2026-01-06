@@ -269,13 +269,12 @@ async def scrape_members(event):
 # 4. UTILITIES (Premium Tools)
 # ---------------------------------------------------------
 
-# --- MUSIC DOWNLOADER (UPDATED: YouTube -> SoundCloud Failover) ---
+# --- MUSIC DOWNLOADER (Dual Mode: YT + SoundCloud) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.song (.*)"))
 async def download_song(event):
     song_name = event.pattern_match.group(1)
     await event.edit(f"🔍 **Searching for:** `{song_name}`...")
     try:
-        # መጀመሪያ መደበኛ ማውረጃ መቼት
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': 'downloaded_song.%(ext)s',
@@ -285,18 +284,18 @@ async def download_song(event):
             'geo_bypass': True,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # 1. መጀመሪያ YouTube ላይ ይሞክራል
+            # 1. YouTube ሙከራ
             try:
                 info = ydl.extract_info(f"ytsearch:{song_name}", download=False)
             except Exception:
-                # 2. YouTube Error ካመጣ (429/Sign in)፣ ወዲያውኑ ወደ SoundCloud ይቀይራል
+                # 2. YouTube ካልሰራ ወደ SoundCloud
                 await event.edit(f"⚠️ **YouTube Blocked! Bypassing via SoundCloud...**")
                 info = ydl.extract_info(f"scsearch:{song_name}", download=False)
 
             if 'entries' in info and len(info['entries']) > 0:
                 video = info['entries'][0]
                 title = video['title']
-                duration = video.get('duration', 0) # SoundCloud አንዳንዴ duration አይልክም
+                duration = video.get('duration', 0)
                 webpage_url = video['webpage_url']
                 
                 await event.edit(f"⬇️ **Downloading:** `{title}`...")
@@ -304,8 +303,6 @@ async def download_song(event):
                 
                 await event.edit(f"⬆️ **Uploading...**")
                 
-                # የወረደውን ፋይል (Extension) ፈልጎ መላክ
-                # yt-dlp እንደየ ምንጩ (YT/SC) በ webm, m4a ወይም mp3 ሊያወርድ ይችላል
                 for ext in ['webm', 'm4a', 'mp3', 'opus']:
                     if os.path.exists(f"downloaded_song.{ext}"):
                         await client.send_file(
@@ -317,11 +314,11 @@ async def download_song(event):
                         break
                 
                 await event.delete()
-            else: await event.edit("❌ **Song not found on YouTube or SoundCloud!**")
+            else: await event.edit("❌ **Song not found!**")
     except Exception as e:
         await event.edit(f"❌ Error: {e}")
 
-# --- VIDEO PROFILE SETTER (.vpic) ---
+# --- VIDEO PROFILE SETTER (.vpic) [IMPROVED: AUTO-TRIMMER] ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.vpic"))
 async def set_video_profile(event):
     reply = await event.get_reply_message()
@@ -329,13 +326,30 @@ async def set_video_profile(event):
         return await event.edit("❌ Reply to a video or GIF!")
     await event.edit("🔄 **Processing Video Profile...**")
     try:
-        video = await client.download_media(reply, file="vpic.mp4")
+        # 1. ቪዲዮውን ማውረድ
+        video_path = await client.download_media(reply, file="vpic_raw.mp4")
+        
+        # 2. BYPASS: ቴሌግራም እስከ 10 ሰከንድ ስለሚፈልግ፣ FFmpeg ተጠቅመን
+        #    የ 30 ሰከንዱን ቪዲዮ ወደ 9 ሰከንድ እንቆርጠዋለን (Trim)
+        trimmed_path = "vpic_safe.mp4"
+        # Command: 9 ሰከንድ ቆርጦ፣ 720x720 አድርጎ ያስተካክላል
+        trim_cmd = f'ffmpeg -i "{video_path}" -t 9 -vf scale="720:720:force_original_aspect_ratio=decrease,pad=720:720:(ow-iw)/2:(oh-ih)/2" -c:v libx264 -pix_fmt yuv420p "{trimmed_path}" -y'
+        os.system(trim_cmd)
+        
+        # 3. የተቆረጠው ካለ እሱን፣ ከሌለ (ከተበላሸ) ዋናውን እንጭናለን
+        upload_file = trimmed_path if os.path.exists(trimmed_path) else video_path
+
         await client(functions.photos.UploadProfilePhotoRequest(
-            video=await client.upload_file(video),
+            video=await client.upload_file(upload_file),
             video_start_ts=0.0
         ))
-        await event.edit("✅ **New Video Profile Set!**")
-        os.remove(video)
+        
+        await event.edit("✅ **New Video Profile Set! (Auto-Trimmed)**")
+        
+        # Cleanup
+        if os.path.exists(video_path): os.remove(video_path)
+        if os.path.exists(trimmed_path): os.remove(trimmed_path)
+        
     except Exception as e:
         await event.edit(f"❌ Error: {e}")
 
