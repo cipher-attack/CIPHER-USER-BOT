@@ -3,7 +3,7 @@ import asyncio
 import logging
 import io
 import random
-import yt_dlp  # --- NEW: Added for Music Downloader ---
+import yt_dlp
 from telethon import TelegramClient, events, functions, types
 from telethon.sessions import StringSession
 from telethon.tl.functions.messages import GetStickerSetRequest
@@ -55,7 +55,7 @@ MY_ID = None
 MY_KEYWORDS = ["cipher", "CIPHER", "first comment", "biruk", "ብሩክ"] 
 # ለ Identity Thief ማስታወሻ
 ORIGINAL_PROFILE = {}
-# --- NEW: AFK VARIABLES ---
+# --- AFK VARIABLES ---
 IS_AFK = False
 AFK_REASON = ""
 
@@ -234,7 +234,7 @@ async def revert_identity(event):
     except Exception as e:
         await event.edit(f"❌ Revert Error: {e}")
 
-# --- NEW: ACTIVE MEMBER SCRAPER ---
+# --- ACTIVE MEMBER SCRAPER ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.scrape (.*)"))
 async def scrape_members(event):
     target = event.pattern_match.group(1)
@@ -269,20 +269,29 @@ async def scrape_members(event):
 # 4. UTILITIES (Premium Tools)
 # ---------------------------------------------------------
 
-# --- NEW: MUSIC DOWNLOADER (.song) ---
+# --- MUSIC DOWNLOADER (UPDATED: Android Client Spoofing) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.song (.*)"))
 async def download_song(event):
     song_name = event.pattern_match.group(1)
     await event.edit(f"🔍 **Searching for:** `{song_name}`...")
     try:
+        # እዚህ ጋር ነው ለውጡ! ዩቲዩብን ለማታለል "extractor_args" ተጨምሯል።
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': 'downloaded_song.%(ext)s',
             'quiet': True,
-            'noplaylist': True
+            'noplaylist': True,
+            'nocheckcertificate': True, # SSL Error እንዳያመጣ
+            # ይህ መስመር ወሳኝ ነው! ራሱን እንደ አንድሮይድ ስልክ ያስመስላል
+            'extractor_args': {'youtube': {'player_client': ['android', 'ios']}},
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch:{song_name}", download=False)
+            # ዩቲዩብ ብሎክ ካደረገ ዝም ብሎ Crash እንዳያደርግ Try/Except
+            try:
+                info = ydl.extract_info(f"ytsearch:{song_name}", download=False)
+            except Exception as search_error:
+                return await event.edit(f"❌ **YouTube Blocked Server IP.**\nTry again later or use .vpic.")
+
             if 'entries' in info and len(info['entries']) > 0:
                 video = info['entries'][0]
                 title = video['title']
@@ -300,6 +309,7 @@ async def download_song(event):
                 await event.delete()
             else: await event.edit("❌ **Song not found!**")
     except Exception as e:
+        # Fallback ወደ m4a
         try:
              if os.path.exists("downloaded_song.m4a"):
                 await client.send_file(event.chat_id, 'downloaded_song.m4a', caption=f"🎧 **Song:** {song_name}")
@@ -307,7 +317,7 @@ async def download_song(event):
                 await event.delete()
         except: await event.edit(f"❌ Error: {e}")
 
-# --- NEW: VIDEO PROFILE SETTER (.vpic) ---
+# --- VIDEO PROFILE SETTER (.vpic) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.vpic"))
 async def set_video_profile(event):
     reply = await event.get_reply_message()
@@ -325,7 +335,7 @@ async def set_video_profile(event):
     except Exception as e:
         await event.edit(f"❌ Error: {e}")
 
-# --- NEW: PURGE (.purge) ---
+# --- PURGE (.purge) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.purge"))
 async def purge_messages(event):
     reply = await event.get_reply_message()
@@ -341,7 +351,7 @@ async def purge_messages(event):
         await notification.delete()
     except: pass
 
-# --- NEW: TAG ALL (.all) ---
+# --- TAG ALL (.all) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.all (.*)"))
 async def tag_all(event):
     text = event.pattern_match.group(1)
@@ -358,7 +368,7 @@ async def tag_all(event):
             await client.send_message(event.chat_id, f"📢 **{text}**\n{''.join(batch)}", parse_mode='html')
     except: pass
 
-# --- NEW: HACKER ANIMATION (.hack) ---
+# --- HACKER ANIMATION (.hack) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.hack"))
 async def hacker_animation(event):
     animation = [
@@ -370,7 +380,7 @@ async def hacker_animation(event):
         await event.edit(f"`{step}`")
         await asyncio.sleep(0.8)
 
-# --- NEW: AFK MODE SETTER (.afk) ---
+# --- AFK MODE SETTER (.afk) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.afk ?(.*)"))
 async def set_afk(event):
     global IS_AFK, AFK_REASON
@@ -397,7 +407,7 @@ async def auto_translate(event):
             await event.edit(tr)
         except: pass
 
-# --- FIXED: PREMIUM EMOJI MAPPING ---
+# --- PREMIUM EMOJI MAPPING ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.(haha|love|sad|fire|wow|cry|lol)"))
 async def premium_emoji(event):
     name = event.pattern_match.group(1)
@@ -471,7 +481,7 @@ async def web_screenshot(event):
         await event.delete()
     except: await event.edit("❌ Error")
 
-# --- NEW: AFK UNSET MONITOR (DISABLE AFK ON ACTIVITY) ---
+# --- AFK UNSET MONITOR ---
 @client.on(events.NewMessage(outgoing=True))
 async def unset_afk_check(event):
     global IS_AFK
@@ -487,7 +497,7 @@ async def unset_afk_check(event):
 async def incoming_handler(event):
     global MY_ID, SNIPER_MODE, IS_AFK, AFK_REASON
 
-    # --- NEW: AFK AUTO REPLY ---
+    # --- AFK AUTO REPLY ---
     if IS_AFK and event.is_private:
         sender = await event.get_sender()
         if sender and not sender.bot:
