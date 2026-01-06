@@ -6,3 +6,4 @@ pydub
 google-generativeai
 Pillow
 yt-dlp
+edge-tts
