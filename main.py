@@ -269,14 +269,13 @@ async def scrape_members(event):
 # 4. UTILITIES (Premium Tools)
 # ---------------------------------------------------------
 
-# --- MUSIC DOWNLOADER (FIXED: IPv4 Force for Render 429 Error) ---
+# --- MUSIC DOWNLOADER (UPDATED: YouTube -> SoundCloud Failover) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.song (.*)"))
 async def download_song(event):
     song_name = event.pattern_match.group(1)
     await event.edit(f"🔍 **Searching for:** `{song_name}`...")
     try:
-        # እዚህ ጋር ነው ለውጡ! Render Server ላይ IPv4 በግድ እንዲጠቀም (source_address)
-        # እና User-Agent በመቀየር እውነተኛ Browser እንዲመስል ተደርጓል
+        # መጀመሪያ መደበኛ ማውረጃ መቼት
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': 'downloaded_song.%(ext)s',
@@ -284,41 +283,43 @@ async def download_song(event):
             'noplaylist': True,
             'nocheckcertificate': True,
             'geo_bypass': True,
-            # ይህ መስመር ወሳኝ ነው ለ Error 429! (IPv4 Force)
-            'source_address': '0.0.0.0', 
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-            }
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # 1. መጀመሪያ YouTube ላይ ይሞክራል
             try:
                 info = ydl.extract_info(f"ytsearch:{song_name}", download=False)
-            except Exception as search_error:
-                return await event.edit(f"❌ **YouTube Error:** {search_error}")
+            except Exception:
+                # 2. YouTube Error ካመጣ (429/Sign in)፣ ወዲያውኑ ወደ SoundCloud ይቀይራል
+                await event.edit(f"⚠️ **YouTube Blocked! Bypassing via SoundCloud...**")
+                info = ydl.extract_info(f"scsearch:{song_name}", download=False)
 
             if 'entries' in info and len(info['entries']) > 0:
                 video = info['entries'][0]
                 title = video['title']
-                duration = video['duration']
+                duration = video.get('duration', 0) # SoundCloud አንዳንዴ duration አይልክም
                 webpage_url = video['webpage_url']
+                
                 await event.edit(f"⬇️ **Downloading:** `{title}`...")
                 ydl.download([webpage_url])
+                
                 await event.edit(f"⬆️ **Uploading...**")
-                await client.send_file(
-                    event.chat_id, 'downloaded_song.webm',
-                    caption=f"🎧 **Song:** {title}\n⏱ **Duration:** {duration} sec\n👤 **By:** Cipher Bot",
-                    supports_streaming=True
-                )
-                if os.path.exists("downloaded_song.webm"): os.remove("downloaded_song.webm")
+                
+                # የወረደውን ፋይል (Extension) ፈልጎ መላክ
+                # yt-dlp እንደየ ምንጩ (YT/SC) በ webm, m4a ወይም mp3 ሊያወርድ ይችላል
+                for ext in ['webm', 'm4a', 'mp3', 'opus']:
+                    if os.path.exists(f"downloaded_song.{ext}"):
+                        await client.send_file(
+                            event.chat_id, f'downloaded_song.{ext}',
+                            caption=f"🎧 **Song:** {title}\n⏱ **Duration:** {duration} sec\n👤 **By:** Cipher Bot",
+                            supports_streaming=True
+                        )
+                        os.remove(f"downloaded_song.{ext}")
+                        break
+                
                 await event.delete()
-            else: await event.edit("❌ **Song not found!**")
+            else: await event.edit("❌ **Song not found on YouTube or SoundCloud!**")
     except Exception as e:
-        try:
-             if os.path.exists("downloaded_song.m4a"):
-                await client.send_file(event.chat_id, 'downloaded_song.m4a', caption=f"🎧 **Song:** {song_name}")
-                os.remove("downloaded_song.m4a")
-                await event.delete()
-        except: await event.edit(f"❌ Error: {e}")
+        await event.edit(f"❌ Error: {e}")
 
 # --- VIDEO PROFILE SETTER (.vpic) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.vpic"))
