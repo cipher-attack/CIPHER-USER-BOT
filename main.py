@@ -63,6 +63,8 @@ AFK_REASON = ""
 TARGET_CHANNEL_ID = None
 SNIPER_TEXT = None
 SNIPER_MODE = "OFF"
+# --- NEW: HUNTER ID VARIABLE ---
+HUNTER_TARGET_ID = None  # የተለየ ሰው/ቻናል ለማደን
 
 # ---------------------------------------------------------
 # 2. GIVEAWAY SNIPER COMMANDS
@@ -76,6 +78,26 @@ async def set_monitor(event):
     title = event.chat.title if event.chat else str(event.chat_id)
     await event.delete()
     await client.send_message("me", f"🎯 **Sniper Locked on:** `{title}`\n🆔 `{TARGET_CHANNEL_ID}`")
+
+# --- NEW: HUNT COMMAND (To Lock specific user/admin) ---
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.hunt (.*)"))
+async def set_hunt_target(event):
+    """ግሩፕ ውስጥ የተለየን ሰው/አድሚን ብቻ ለይቶ ለማደን"""
+    global HUNTER_TARGET_ID
+    input_str = event.pattern_match.group(1)
+    
+    try:
+        # User ID ወይም Username ይቀበላል
+        if input_str.isdigit():
+            user = await client.get_entity(int(input_str))
+        else:
+            user = await client.get_entity(input_str)
+            
+        HUNTER_TARGET_ID = user.id
+        await event.delete()
+        await client.send_message("me", f"🦅 **Hunter Protocol Active!**\nTargeting: `{user.first_name}` (ID: `{user.id}`)\nOnly messages from this user will trigger the sniper.")
+    except Exception as e:
+        await event.edit(f"❌ Error: {e}")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.win (.*)"))
 async def set_flash_mode(event):
@@ -92,16 +114,18 @@ async def set_quiz_mode(event):
     global SNIPER_MODE
     SNIPER_MODE = "QUIZ"
     await event.delete()
-    await client.send_message("me", f"🧠 **Quiz Mode ARMED!**\nAI will answer instantly.")
+    # Turbo Mode ማስታወቂያ
+    await client.send_message("me", f"🧠 **Quiz Mode (TURBO) ARMED!**\nAI optimized for millisecond response.")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.stop"))
 async def stop_sniper(event):
     """Sniping ማቆሚያ"""
-    global SNIPER_MODE, TARGET_CHANNEL_ID
+    global SNIPER_MODE, TARGET_CHANNEL_ID, HUNTER_TARGET_ID
     SNIPER_MODE = "OFF"
     TARGET_CHANNEL_ID = None
+    HUNTER_TARGET_ID = None # ኢላማውንም ያጠፋል
     await event.delete()
-    await client.send_message("me", "🛑 **Sniper Disengaged.**")
+    await client.send_message("me", "🛑 **Sniper & Hunter Disengaged.**")
 
 # ---------------------------------------------------------
 # 3. GOD MODE COMMANDS
@@ -513,7 +537,7 @@ async def unset_afk_check(event):
 
 @client.on(events.NewMessage(incoming=True))
 async def incoming_handler(event):
-    global MY_ID, SNIPER_MODE, IS_AFK, AFK_REASON
+    global MY_ID, SNIPER_MODE, IS_AFK, AFK_REASON, HUNTER_TARGET_ID
 
     # --- AFK AUTO REPLY ---
     if IS_AFK and event.is_private:
@@ -521,20 +545,32 @@ async def incoming_handler(event):
         if sender and not sender.bot:
             await event.reply(f"🤖 **Auto-Reply:**\nI am currently AFK (Away From Keyboard).\n\nReason: `{AFK_REASON}`")
 
-    # --- A. SNIPER LOGIC ---
+    # --- A. SNIPER LOGIC (UPGRADED: HUNTER & SPEED) ---
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
+        
+        # --- 1. HUNT FILTER (የአድሚን ለይቶ ማደን) ---
+        # HUNTER_TARGET_ID ካለ፣ የላከው ሰው እሱ መሆኑን ማረጋገጥ አለበት።
+        # እሱ ካልሆነ ዝም ብሎ ያልፈዋል (Ignore)።
+        if HUNTER_TARGET_ID and event.sender_id != HUNTER_TARGET_ID:
+            return 
+
         if SNIPER_MODE == "FLASH" and SNIPER_TEXT:
             try:
+                # Millisecond response - No delay!
                 await client.send_message(event.chat_id, SNIPER_TEXT, reply_to=event.id)
                 SNIPER_MODE = "OFF"
                 await client.send_message("me", f"✅ **FLASH SNIPED:** {SNIPER_TEXT}")
             except: pass
             return
+            
         elif SNIPER_MODE == "QUIZ" and event.text:
             try:
-                prompt = f"Answer instantly. Shortest answer. Q: {event.text}"
+                # --- 2. FAST AI PROMPT (TURBO MODE) ---
+                # ትዕዛዙ በጣም አጭር ስለሆነ AI ወዲያውኑ ይመልሳል።
+                prompt = f"Ans: {event.text}. Short."
                 response = model.generate_content(prompt)
                 answer = response.text.strip()
+                
                 await client.send_message(event.chat_id, answer, reply_to=event.id)
                 SNIPER_MODE = "OFF"
                 await client.send_message("me", f"✅ **QUIZ SNIPED:** {answer}")
