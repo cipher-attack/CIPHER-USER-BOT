@@ -3,6 +3,7 @@ import asyncio
 import logging
 import io
 import random
+import yt_dlp  # --- NEW: Added for Music Downloader ---
 from telethon import TelegramClient, events, functions, types
 from telethon.sessions import StringSession
 from telethon.tl.functions.messages import GetStickerSetRequest
@@ -54,6 +55,9 @@ MY_ID = None
 MY_KEYWORDS = ["cipher", "CIPHER", "first comment", "biruk", "ብሩክ"] 
 # ለ Identity Thief ማስታወሻ
 ORIGINAL_PROFILE = {}
+# --- NEW: AFK VARIABLES ---
+IS_AFK = False
+AFK_REASON = ""
 
 # --- SNIPER VARIABLES ---
 TARGET_CHANNEL_ID = None
@@ -118,7 +122,7 @@ async def ai_handler(event):
         else:
             if not query: return await event.edit("❌ Text/Image needed")
             response = model.generate_content(query)
-        
+
         text = response.text
         if len(text) > 4000: text = text[:4000] + "..."
         await event.edit(f"🤖 **AI:**\n\n{text}")
@@ -236,7 +240,7 @@ async def scrape_members(event):
     target = event.pattern_match.group(1)
     my_group = event.chat_id
     await event.delete() # Stealth Mode
-    
+
     status_msg = await client.send_message("me", f"🕵️ **Scraping from {target}...**")
     try:
         entity = await client.get_entity(target)
@@ -245,9 +249,9 @@ async def scrape_members(event):
         for user in participants:
             if not user.bot and (isinstance(user.status, types.UserStatusOnline) or isinstance(user.status, types.UserStatusRecently)):
                 active_users.append(user)
-        
+
         await status_msg.edit(f"✅ Found {len(active_users)} ACTIVE users! Adding...")
-        
+
         count = 0
         for user in active_users:
             if count >= 40: break # Safety limit
@@ -256,7 +260,7 @@ async def scrape_members(event):
                 count += 1
                 await asyncio.sleep(10)
             except: pass
-            
+
         await status_msg.edit(f"✅ **Done:** Added {count} users.")
     except Exception as e:
         await status_msg.edit(f"❌ Error: {e}")
@@ -264,6 +268,115 @@ async def scrape_members(event):
 # ---------------------------------------------------------
 # 4. UTILITIES (Premium Tools)
 # ---------------------------------------------------------
+
+# --- NEW: MUSIC DOWNLOADER (.song) ---
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.song (.*)"))
+async def download_song(event):
+    song_name = event.pattern_match.group(1)
+    await event.edit(f"🔍 **Searching for:** `{song_name}`...")
+    try:
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': 'downloaded_song.%(ext)s',
+            'quiet': True,
+            'noplaylist': True
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"ytsearch:{song_name}", download=False)
+            if 'entries' in info and len(info['entries']) > 0:
+                video = info['entries'][0]
+                title = video['title']
+                duration = video['duration']
+                webpage_url = video['webpage_url']
+                await event.edit(f"⬇️ **Downloading:** `{title}`...")
+                ydl.download([webpage_url])
+                await event.edit(f"⬆️ **Uploading...**")
+                await client.send_file(
+                    event.chat_id, 'downloaded_song.webm',
+                    caption=f"🎧 **Song:** {title}\n⏱ **Duration:** {duration} sec\n👤 **By:** Cipher Bot",
+                    supports_streaming=True
+                )
+                if os.path.exists("downloaded_song.webm"): os.remove("downloaded_song.webm")
+                await event.delete()
+            else: await event.edit("❌ **Song not found!**")
+    except Exception as e:
+        try:
+             if os.path.exists("downloaded_song.m4a"):
+                await client.send_file(event.chat_id, 'downloaded_song.m4a', caption=f"🎧 **Song:** {song_name}")
+                os.remove("downloaded_song.m4a")
+                await event.delete()
+        except: await event.edit(f"❌ Error: {e}")
+
+# --- NEW: VIDEO PROFILE SETTER (.vpic) ---
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.vpic"))
+async def set_video_profile(event):
+    reply = await event.get_reply_message()
+    if not reply or not reply.media:
+        return await event.edit("❌ Reply to a video or GIF!")
+    await event.edit("🔄 **Processing Video Profile...**")
+    try:
+        video = await client.download_media(reply, file="vpic.mp4")
+        await client(functions.photos.UploadProfilePhotoRequest(
+            video=await client.upload_file(video),
+            video_start_ts=0.0
+        ))
+        await event.edit("✅ **New Video Profile Set!**")
+        os.remove(video)
+    except Exception as e:
+        await event.edit(f"❌ Error: {e}")
+
+# --- NEW: PURGE (.purge) ---
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.purge"))
+async def purge_messages(event):
+    reply = await event.get_reply_message()
+    if not reply: return await event.edit("❌ Reply to a message to start purging.")
+    await event.delete()
+    try:
+        msgs = []
+        async for msg in client.iter_messages(event.chat_id, min_id=reply.id - 1):
+            msgs.append(msg)
+        await client.delete_messages(event.chat_id, msgs)
+        notification = await client.send_message(event.chat_id, f"✅ **Purged {len(msgs)} messages!**")
+        await asyncio.sleep(3)
+        await notification.delete()
+    except: pass
+
+# --- NEW: TAG ALL (.all) ---
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.all (.*)"))
+async def tag_all(event):
+    text = event.pattern_match.group(1)
+    if not text: return await event.edit("❌ Add text (e.g., .all Hello)")
+    await event.delete()
+    try:
+        mentions = []
+        async for user in client.iter_participants(event.chat_id):
+            if not user.bot and not user.deleted:
+                mentions.append(f"<a href='tg://user?id={user.id}'>\u200b</a>")
+        batch_size = 100
+        for i in range(0, len(mentions), batch_size):
+            batch = mentions[i:i + batch_size]
+            await client.send_message(event.chat_id, f"📢 **{text}**\n{''.join(batch)}", parse_mode='html')
+    except: pass
+
+# --- NEW: HACKER ANIMATION (.hack) ---
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.hack"))
+async def hacker_animation(event):
+    animation = [
+        "💻 Establishing Connection...", "🔄 Bypassing Firewall...", "🔓 Accessing Database...",
+        "📂 Stealing Data: 10% ■□□□□", "📂 Stealing Data: 50% ■■■□□", "📂 Stealing Data: 100% ■■■■■",
+        "✅ **SYSTEM BREACHED SUCCESSFUL!**"
+    ]
+    for step in animation:
+        await event.edit(f"`{step}`")
+        await asyncio.sleep(0.8)
+
+# --- NEW: AFK MODE SETTER (.afk) ---
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.afk ?(.*)"))
+async def set_afk(event):
+    global IS_AFK, AFK_REASON
+    IS_AFK = True
+    AFK_REASON = event.pattern_match.group(1) or "Busy right now."
+    await event.edit(f"💤 **AFK Mode On!**\nReason: `{AFK_REASON}`")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.tr"))
 async def translate_reply(event):
@@ -289,17 +402,17 @@ async def auto_translate(event):
 async def premium_emoji(event):
     name = event.pattern_match.group(1)
     await event.delete()
-    
+
     # Emoji Mapping
     emoji_map = {
         "haha": "😂", "lol": "🤣", "love": "❤️",
         "sad": "😢", "cry": "😭", "fire": "🔥", "wow": "😮"
     }
     target = emoji_map.get(name, "😂")
-    
+
     # Reliable Packs
     packs = ["HotCherry", "Duck", "UtyaDuck", "Pepe"]
-    
+
     try:
         found = False
         for pack in packs:
@@ -358,13 +471,27 @@ async def web_screenshot(event):
         await event.delete()
     except: await event.edit("❌ Error")
 
+# --- NEW: AFK UNSET MONITOR (DISABLE AFK ON ACTIVITY) ---
+@client.on(events.NewMessage(outgoing=True))
+async def unset_afk_check(event):
+    global IS_AFK
+    if IS_AFK and not event.text.startswith(".afk"):
+        IS_AFK = False
+        await client.send_message(event.chat_id, "✅ **I am back online!**")
+
 # ---------------------------------------------------------
 # 5. CORE HANDLER (INCOMING MESSAGES)
 # ---------------------------------------------------------
 
 @client.on(events.NewMessage(incoming=True))
 async def incoming_handler(event):
-    global MY_ID, SNIPER_MODE
+    global MY_ID, SNIPER_MODE, IS_AFK, AFK_REASON
+
+    # --- NEW: AFK AUTO REPLY ---
+    if IS_AFK and event.is_private:
+        sender = await event.get_sender()
+        if sender and not sender.bot:
+            await event.reply(f"🤖 **Auto-Reply:**\nI am currently AFK (Away From Keyboard).\n\nReason: `{AFK_REASON}`")
 
     # --- A. SNIPER LOGIC ---
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
@@ -481,7 +608,7 @@ async def main():
     global MY_ID
     logger.info("⏳ Starting...")
     await client.start()
-    
+
     me = await client.get_me()
     MY_ID = me.id
     logger.info(f"✅ LOGGED IN AS: {me.first_name} (ID: {MY_ID})")
@@ -489,13 +616,13 @@ async def main():
     app = web.Application()
     app.router.add_get('/', home)
     app.router.add_get('/download/{file_id}', download)
-    
+
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.environ.get("PORT", 8080))
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    
+
     while True:
         try:
             await client(functions.account.UpdateStatusRequest(offline=False))
