@@ -1,7 +1,8 @@
-telethon
+Telethon
 aiohttp
 deep-translator
 gTTS
+pydub
 google-generativeai
 Pillow
-pydub
+yt-dlp
