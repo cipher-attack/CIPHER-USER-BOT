@@ -4,6 +4,7 @@ import logging
 import io
 import random
 import yt_dlp
+import edge_tts # --- NEW: Human-Like Voice Engine ---
 from telethon import TelegramClient, events, functions, types
 from telethon.sessions import StringSession
 from telethon.tl.functions.messages import GetStickerSetRequest
@@ -180,26 +181,30 @@ async def user_info(event):
         else: await event.edit(info)
     except: await event.edit("❌ Error")
 
+# --- HUMAN-LIKE VOICE (.say) [UPDATED: NEURAL TTS] ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.say (.*)"))
 async def text_to_speech(event):
     text = event.pattern_match.group(1)
-    await event.delete()
+    await event.edit("🗣️ **Generating Human Voice...**")
     try:
-        lang = 'am' if any("\u1200" <= char <= "\u137F" for char in text) else 'en'
-        tts = gTTS(text=text, lang=lang)
-        f = io.BytesIO()
-        tts.write_to_fp(f)
-        f.seek(0)
-        sound = AudioSegment.from_file(f, format="mp3")
-        new_sample_rate = int(sound.frame_rate * 0.69)
-        thick_sound = sound._spawn(sound.raw_data, overrides={'frame_rate': new_sample_rate})
-        thick_sound = thick_sound.set_frame_rate(sound.frame_rate)
-        output = io.BytesIO()
-        thick_sound.export(output, format="ogg", codec="libopus")
-        output.name = "voice.ogg"
-        output.seek(0)
-        await client.send_file(event.chat_id, output, voice_note=True)
-    except: pass
+        # አማርኛ ፊደል ካለበት የአማርኛ ድምፅ፣ ከሌለ የእንግሊዝኛ ወንድ ድምፅ ይመርጣል
+        is_amharic = any("\u1200" <= char <= "\u137F" for char in text)
+        
+        # Voice Selection: Amharic (Ameha) or English (Christopher - Deep/Hacker style)
+        voice = 'am-ET-AmehaNeural' if is_amharic else 'en-US-ChristopherNeural'
+        
+        communicate = edge_tts.Communicate(text, voice)
+        filename = "human_voice.mp3"
+        
+        await communicate.save(filename)
+        
+        await client.send_file(event.chat_id, filename, voice_note=True, caption=None)
+        
+        if os.path.exists(filename):
+            os.remove(filename)
+        await event.delete()
+    except Exception as e:
+        await event.edit(f"❌ Voice Error: {e}")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.clone"))
 async def clone_identity(event):
