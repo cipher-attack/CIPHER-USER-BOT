@@ -269,28 +269,32 @@ async def scrape_members(event):
 # 4. UTILITIES (Premium Tools)
 # ---------------------------------------------------------
 
-# --- MUSIC DOWNLOADER (UPDATED: Android Client Spoofing) ---
+# --- MUSIC DOWNLOADER (FIXED: IPv4 Force for Render 429 Error) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.song (.*)"))
 async def download_song(event):
     song_name = event.pattern_match.group(1)
     await event.edit(f"🔍 **Searching for:** `{song_name}`...")
     try:
-        # እዚህ ጋር ነው ለውጡ! ዩቲዩብን ለማታለል "extractor_args" ተጨምሯል።
+        # እዚህ ጋር ነው ለውጡ! Render Server ላይ IPv4 በግድ እንዲጠቀም (source_address)
+        # እና User-Agent በመቀየር እውነተኛ Browser እንዲመስል ተደርጓል
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': 'downloaded_song.%(ext)s',
             'quiet': True,
             'noplaylist': True,
-            'nocheckcertificate': True, # SSL Error እንዳያመጣ
-            # ይህ መስመር ወሳኝ ነው! ራሱን እንደ አንድሮይድ ስልክ ያስመስላል
-            'extractor_args': {'youtube': {'player_client': ['android', 'ios']}},
+            'nocheckcertificate': True,
+            'geo_bypass': True,
+            # ይህ መስመር ወሳኝ ነው ለ Error 429! (IPv4 Force)
+            'source_address': '0.0.0.0', 
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+            }
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # ዩቲዩብ ብሎክ ካደረገ ዝም ብሎ Crash እንዳያደርግ Try/Except
             try:
                 info = ydl.extract_info(f"ytsearch:{song_name}", download=False)
             except Exception as search_error:
-                return await event.edit(f"❌ **YouTube Blocked Server IP.**\nTry again later or use .vpic.")
+                return await event.edit(f"❌ **YouTube Error:** {search_error}")
 
             if 'entries' in info and len(info['entries']) > 0:
                 video = info['entries'][0]
@@ -309,7 +313,6 @@ async def download_song(event):
                 await event.delete()
             else: await event.edit("❌ **Song not found!**")
     except Exception as e:
-        # Fallback ወደ m4a
         try:
              if os.path.exists("downloaded_song.m4a"):
                 await client.send_file(event.chat_id, 'downloaded_song.m4a', caption=f"🎧 **Song:** {song_name}")
