@@ -54,7 +54,9 @@ reply_cache = {}
 download_cache = {}
 MY_ID = None  
 MY_KEYWORDS = ["cipher", "CIPHER", "first comment", "biruk", "ብሩክ"] 
+# ለ Identity Thief ማስታወሻ
 ORIGINAL_PROFILE = {}
+# --- AFK VARIABLES ---
 IS_AFK = False
 AFK_REASON = ""
 
@@ -62,6 +64,7 @@ AFK_REASON = ""
 TARGET_CHANNEL_ID = None
 SNIPER_TEXT = None
 SNIPER_MODE = "OFF"
+# --- HUNTER ID VARIABLE (The Key Fix) ---
 HUNTER_TARGET_ID = None 
 
 # ---------------------------------------------------------
@@ -70,52 +73,74 @@ HUNTER_TARGET_ID = None
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.monitor"))
 async def set_monitor(event):
+    """አሁን ያለህበትን ቻናል ኢላማ ያደርጋል"""
     global TARGET_CHANNEL_ID
     TARGET_CHANNEL_ID = event.chat_id
     title = event.chat.title if event.chat else str(event.chat_id)
     await event.delete()
     await client.send_message("me", f"🎯 **Sniper Locked on:** `{title}`\n🆔 `{TARGET_CHANNEL_ID}`")
 
+# --- IMPROVED: HUNT COMMAND (REPLY ONLY) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.hunt"))
 async def set_hunt_target(event):
+    """
+    ይሄ በጣም ወሳኝ ነው! ስህተትን ለማስወገድ፣
+    ማደን የምትፈልገው ሰው የላከው ሜሴጅ ላይ REPLY አድርገህ .hunt በል።
+    """
     global HUNTER_TARGET_ID
     reply = await event.get_reply_message()
+    
     if not reply:
         return await event.edit("❌ **Error:** Reply to a message to hunt that user!")
+    
+    # የላከውን ሰው ID በትክክል ይይዛል (Private Channel ቢሆንም ይሰራል)
+    # ቻናል ከሆነ የቻናሉን ID፣ ሰው ከሆነ የሰውየውን ID ይይዛል።
     HUNTER_TARGET_ID = reply.sender_id
+    
+    # ስሙን ለማግኘት እንሞክር (ለማረጋገጫ ብቻ)
     try:
         sender = await reply.get_sender()
         name = sender.first_name if sender else getattr(sender, 'title', 'Hidden Entity')
-    except: name = "Unknown Target"
+    except:
+        name = "Unknown Target"
+
     await event.delete()
-    await client.send_message("me", f"🦅 **Hunter Protocol Active!**\n🎯 **Target:** `{name}`\n🆔 **ID:** `{HUNTER_TARGET_ID}`")
+    await client.send_message("me", f"🦅 **Hunter Protocol Active!**\n\n🎯 **Target:** `{name}`\n🆔 **ID:** `{HUNTER_TARGET_ID}`\n\n⚠️ **NOTE:** System locked. Will ONLY reply if THIS ID speaks.")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.win (.*)"))
 async def set_flash_mode(event):
+    """Flash Mode: ጽሁፍ አዘጋጅቶ መጠበቅ"""
     global SNIPER_MODE, SNIPER_TEXT
     SNIPER_TEXT = event.pattern_match.group(1)
     SNIPER_MODE = "FLASH"
     await event.delete()
+    
+    # ሁኔታውን ማረጋገጥ
     status = f"⚡ **Flash Mode ARMED!**\nAuto-Reply: `{SNIPER_TEXT}`"
-    if HUNTER_TARGET_ID: status += "\n🔒 **Target Locked:** YES"
-    else: status += "\n⚠️ **Target Locked:** NO"
+    if HUNTER_TARGET_ID:
+        status += "\n🔒 **Target Locked:** YES (SECURE MODE)"
+    else:
+        status += "\n⚠️ **Target Locked:** NO (RISKY - WILL FIRE AT ANYONE)"
+        
     await client.send_message("me", status)
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.quiz"))
 async def set_quiz_mode(event):
+    """Quiz Mode: AI በሰውኛ እና በአጭሩ እንዲመልስ"""
     global SNIPER_MODE
     SNIPER_MODE = "QUIZ"
     await event.delete()
-    await client.send_message("me", f"🧠 **Quiz Mode (TURBO) ARMED!**")
+    await client.send_message("me", f"🧠 **Quiz Mode (TURBO) ARMED!**\nAI optimized for millisecond response.")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.stop"))
 async def stop_sniper(event):
+    """Sniping ማቆሚያ"""
     global SNIPER_MODE, TARGET_CHANNEL_ID, HUNTER_TARGET_ID
     SNIPER_MODE = "OFF"
     TARGET_CHANNEL_ID = None
     HUNTER_TARGET_ID = None 
     await event.delete()
-    await client.send_message("me", "🛑 **Sniper & Hunter Disengaged.**")
+    await client.send_message("me", "🛑 **Sniper & Hunter Disengaged.**\nAll targets cleared.")
 
 # ---------------------------------------------------------
 # 3. GOD MODE COMMANDS
@@ -136,6 +161,7 @@ async def ai_handler(event):
         else:
             if not query: return await event.edit("❌ Text/Image needed")
             response = model.generate_content(query)
+
         text = response.text
         if len(text) > 4000: text = text[:4000] + "..."
         await event.edit(f"🤖 **AI:**\n\n{text}")
@@ -169,18 +195,24 @@ async def user_info(event):
         else: await event.edit(info)
     except: await event.edit("❌ Error")
 
+# --- HUMAN-LIKE VOICE (.say) [FIXED] ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.say (.*)"))
 async def text_to_speech(event):
     text = event.pattern_match.group(1)
     await event.edit("🗣️ **Generating Human Voice...**")
     try:
+        # Check if text contains Amharic characters
         is_amharic = any("\u1200" <= char <= "\u137F" for char in text)
         voice = 'am-ET-AmehaNeural' if is_amharic else 'en-US-ChristopherNeural'
+        
         communicate = edge_tts.Communicate(text, voice)
         filename = "human_voice.mp3"
         await communicate.save(filename)
+        
         await client.send_file(event.chat_id, filename, voice_note=True, caption=None)
-        if os.path.exists(filename): os.remove(filename)
+        
+        if os.path.exists(filename):
+            os.remove(filename)
         await event.delete()
     except Exception as e:
         await event.edit(f"❌ Voice Error: {e}")
@@ -242,11 +274,13 @@ async def revert_identity(event):
     except Exception as e:
         await event.edit(f"❌ Revert Error: {e}")
 
+# --- ACTIVE MEMBER SCRAPER ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.scrape (.*)"))
 async def scrape_members(event):
     target = event.pattern_match.group(1)
     my_group = event.chat_id
-    await event.delete()
+    await event.delete() # Stealth Mode
+
     status_msg = await client.send_message("me", f"🕵️ **Scraping from {target}...**")
     try:
         entity = await client.get_entity(target)
@@ -255,15 +289,18 @@ async def scrape_members(event):
         for user in participants:
             if not user.bot and (isinstance(user.status, types.UserStatusOnline) or isinstance(user.status, types.UserStatusRecently)):
                 active_users.append(user)
+
         await status_msg.edit(f"✅ Found {len(active_users)} ACTIVE users! Adding...")
+
         count = 0
         for user in active_users:
-            if count >= 40: break
+            if count >= 40: break # Safety limit
             try:
                 await client(InviteToChannelRequest(my_group, [user]))
                 count += 1
                 await asyncio.sleep(10)
             except: pass
+
         await status_msg.edit(f"✅ **Done:** Added {count} users.")
     except Exception as e:
         await status_msg.edit(f"❌ Error: {e}")
@@ -272,51 +309,84 @@ async def scrape_members(event):
 # 4. UTILITIES (Premium Tools)
 # ---------------------------------------------------------
 
+# --- MUSIC DOWNLOADER (Dual Mode) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.song (.*)"))
 async def download_song(event):
     song_name = event.pattern_match.group(1)
     await event.edit(f"🔍 **Searching for:** `{song_name}`...")
     try:
-        ydl_opts = {'format': 'bestaudio/best', 'outtmpl': 'downloaded_song.%(ext)s', 'quiet': True, 'noplaylist': True, 'nocheckcertificate': True, 'geo_bypass': True}
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': 'downloaded_song.%(ext)s',
+            'quiet': True,
+            'noplaylist': True,
+            'nocheckcertificate': True,
+            'geo_bypass': True,
+        }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            try: info = ydl.extract_info(f"ytsearch:{song_name}", download=False)
-            except:
+            # Try YouTube first
+            try:
+                info = ydl.extract_info(f"ytsearch:{song_name}", download=False)
+            except Exception:
+                # Fallback to SoundCloud
                 await event.edit(f"⚠️ **YouTube Blocked! Bypassing via SoundCloud...**")
                 info = ydl.extract_info(f"scsearch:{song_name}", download=False)
+
             if 'entries' in info and len(info['entries']) > 0:
                 video = info['entries'][0]
                 title = video['title']
                 duration = video.get('duration', 0)
                 webpage_url = video['webpage_url']
+                
                 await event.edit(f"⬇️ **Downloading:** `{title}`...")
                 ydl.download([webpage_url])
+                
                 await event.edit(f"⬆️ **Uploading...**")
+                
                 for ext in ['webm', 'm4a', 'mp3', 'opus']:
                     if os.path.exists(f"downloaded_song.{ext}"):
-                        await client.send_file(event.chat_id, f'downloaded_song.{ext}', caption=f"🎧 **Song:** {title}\n⏱ **Duration:** {duration} sec\n👤 **By:** Cipher Bot", supports_streaming=True)
+                        await client.send_file(
+                            event.chat_id, f'downloaded_song.{ext}',
+                            caption=f"🎧 **Song:** {title}\n⏱ **Duration:** {duration} sec\n👤 **By:** Cipher Bot",
+                            supports_streaming=True
+                        )
                         os.remove(f"downloaded_song.{ext}")
                         break
+                
                 await event.delete()
             else: await event.edit("❌ **Song not found!**")
-    except Exception as e: await event.edit(f"❌ Error: {e}")
+    except Exception as e:
+        await event.edit(f"❌ Error: {e}")
 
+# --- VIDEO PROFILE SETTER (.vpic) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.vpic"))
 async def set_video_profile(event):
     reply = await event.get_reply_message()
-    if not reply or not reply.media: return await event.edit("❌ Reply to a video or GIF!")
+    if not reply or not reply.media:
+        return await event.edit("❌ Reply to a video or GIF!")
     await event.edit("🔄 **Processing Video Profile...**")
     try:
         video_path = await client.download_media(reply, file="vpic_raw.mp4")
         trimmed_path = "vpic_safe.mp4"
         trim_cmd = f'ffmpeg -i "{video_path}" -t 9 -vf scale="720:720:force_original_aspect_ratio=decrease,pad=720:720:(ow-iw)/2:(oh-ih)/2" -c:v libx264 -pix_fmt yuv420p "{trimmed_path}" -y'
         os.system(trim_cmd)
+        
         upload_file = trimmed_path if os.path.exists(trimmed_path) else video_path
-        await client(functions.photos.UploadProfilePhotoRequest(video=await client.upload_file(upload_file), video_start_ts=0.0))
+
+        await client(functions.photos.UploadProfilePhotoRequest(
+            video=await client.upload_file(upload_file),
+            video_start_ts=0.0
+        ))
+        
         await event.edit("✅ **New Video Profile Set! (Auto-Trimmed)**")
+        
         if os.path.exists(video_path): os.remove(video_path)
         if os.path.exists(trimmed_path): os.remove(trimmed_path)
-    except Exception as e: await event.edit(f"❌ Error: {e}")
+        
+    except Exception as e:
+        await event.edit(f"❌ Error: {e}")
 
+# --- PURGE (.purge) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.purge"))
 async def purge_messages(event):
     reply = await event.get_reply_message()
@@ -332,6 +402,7 @@ async def purge_messages(event):
         await notification.delete()
     except: pass
 
+# --- TAG ALL (.all) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.all (.*)"))
 async def tag_all(event):
     text = event.pattern_match.group(1)
@@ -340,20 +411,27 @@ async def tag_all(event):
     try:
         mentions = []
         async for user in client.iter_participants(event.chat_id):
-            if not user.bot and not user.deleted: mentions.append(f"<a href='tg://user?id={user.id}'>\u200b</a>")
+            if not user.bot and not user.deleted:
+                mentions.append(f"<a href='tg://user?id={user.id}'>\u200b</a>")
         batch_size = 100
         for i in range(0, len(mentions), batch_size):
             batch = mentions[i:i + batch_size]
             await client.send_message(event.chat_id, f"📢 **{text}**\n{''.join(batch)}", parse_mode='html')
     except: pass
 
+# --- HACKER ANIMATION (.hack) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.hack"))
 async def hacker_animation(event):
-    animation = ["💻 Establishing Connection...", "🔄 Bypassing Firewall...", "🔓 Accessing Database...", "📂 Stealing Data: 10% ■□□□□", "📂 Stealing Data: 50% ■■■□□", "📂 Stealing Data: 100% ■■■■■", "✅ **SYSTEM BREACHED SUCCESSFUL!**"]
+    animation = [
+        "💻 Establishing Connection...", "🔄 Bypassing Firewall...", "🔓 Accessing Database...",
+        "📂 Stealing Data: 10% ■□□□□", "📂 Stealing Data: 50% ■■■□□", "📂 Stealing Data: 100% ■■■■■",
+        "✅ **SYSTEM BREACHED SUCCESSFUL!**"
+    ]
     for step in animation:
         await event.edit(f"`{step}`")
         await asyncio.sleep(0.8)
 
+# --- AFK MODE SETTER (.afk) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.afk ?(.*)"))
 async def set_afk(event):
     global IS_AFK, AFK_REASON
@@ -380,19 +458,31 @@ async def auto_translate(event):
             await event.edit(tr)
         except: pass
 
+# --- PREMIUM EMOJI MAPPING ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.(haha|love|sad|fire|wow|cry|lol)"))
 async def premium_emoji(event):
     name = event.pattern_match.group(1)
     await event.delete()
-    emoji_map = {"haha": "😂", "lol": "🤣", "love": "❤️", "sad": "😢", "cry": "😭", "fire": "🔥", "wow": "😮"}
+
+    # Emoji Mapping
+    emoji_map = {
+        "haha": "😂", "lol": "🤣", "love": "❤️",
+        "sad": "😢", "cry": "😭", "fire": "🔥", "wow": "😮"
+    }
     target = emoji_map.get(name, "😂")
+
+    # Reliable Packs
     packs = ["HotCherry", "Duck", "UtyaDuck", "Pepe"]
+
     try:
         found = False
         for pack in packs:
             if found: break
             try:
-                stickers = await client(GetStickerSetRequest(stickerset=InputStickerSetShortName(short_name=pack), hash=0))
+                stickers = await client(GetStickerSetRequest(
+                    stickerset=InputStickerSetShortName(short_name=pack),
+                    hash=0
+                ))
                 for doc in stickers.documents:
                     for attr in doc.attributes:
                         if isinstance(attr, types.DocumentAttributeSticker):
@@ -418,7 +508,8 @@ async def bypass_link(event):
     text = args[1] if len(args) > 1 else "✨ Open Link ✨"
     msg = await event.edit("▓▒░ LOADING...")
     await asyncio.sleep(4) 
-    try: await msg.edit(f"[{text}]({link})", link_preview=False)
+    try:
+        await msg.edit(f"[{text}]({link})", link_preview=False)
     except: await msg.edit("❌ Failed")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.qrl (.*)"))
@@ -441,6 +532,7 @@ async def web_screenshot(event):
         await event.delete()
     except: await event.edit("❌ Error")
 
+# --- AFK UNSET MONITOR ---
 @client.on(events.NewMessage(outgoing=True))
 async def unset_afk_check(event):
     global IS_AFK
@@ -456,17 +548,25 @@ async def unset_afk_check(event):
 async def incoming_handler(event):
     global MY_ID, SNIPER_MODE, IS_AFK, AFK_REASON, HUNTER_TARGET_ID
 
+    # --- AFK AUTO REPLY ---
     if IS_AFK and event.is_private:
         sender = await event.get_sender()
         if sender and not sender.bot:
             await event.reply(f"🤖 **Auto-Reply:**\nI am currently AFK (Away From Keyboard).\n\nReason: `{AFK_REASON}`")
 
+    # --- A. SNIPER LOGIC (UPGRADED: HUNTER & SPEED) ---
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
+        
+        # --- 1. HUNT FILTER (THE BULLETPROOF CHECK) ---
+        # HUNTER_TARGET_ID ከተሞላ፣ ላኪው እሱ መሆኑን ያረጋግጣል።
+        # ላኪው እሱ ካልሆነ፣ ቦቱ መልስ አይሰጥም (Return)።
+        # ይሄ "Random Reply" እንዳያደርግ የሚከለክለው ዋናው መሳሪያ ነው።
         if HUNTER_TARGET_ID and event.sender_id != HUNTER_TARGET_ID:
             return 
 
         if SNIPER_MODE == "FLASH" and SNIPER_TEXT:
             try:
+                # Millisecond response - No delay!
                 await client.send_message(event.chat_id, SNIPER_TEXT, reply_to=event.id)
                 SNIPER_MODE = "OFF"
                 await client.send_message("me", f"✅ **FLASH SNIPED:** {SNIPER_TEXT}")
@@ -475,15 +575,18 @@ async def incoming_handler(event):
             
         elif SNIPER_MODE == "QUIZ" and event.text:
             try:
+                # --- 2. FAST AI PROMPT (TURBO MODE) ---
                 prompt = f"Ans: {event.text}. Short."
                 response = model.generate_content(prompt)
                 answer = response.text.strip()
+                
                 await client.send_message(event.chat_id, answer, reply_to=event.id)
                 SNIPER_MODE = "OFF"
                 await client.send_message("me", f"✅ **QUIZ SNIPED:** {answer}")
             except: pass
             return
 
+    # --- B. EAVESDROPPER ---
     if (event.is_group or event.is_channel) and event.raw_text:
         try:
             for k in MY_KEYWORDS:
@@ -493,6 +596,7 @@ async def incoming_handler(event):
                     break
         except: pass
 
+    # --- C. VAULT BREAKER (FIXED) ---
     is_vanishing = False
     if event.message.ttl_period: is_vanishing = True
     elif event.media and hasattr(event.media, 'ttl_seconds') and event.media.ttl_seconds: is_vanishing = True
@@ -510,6 +614,7 @@ async def incoming_handler(event):
             logger.error(f"Vault Error: {e}")
         return
 
+    # --- D. GHOST MODE ---
     if event.is_private and not event.is_group and not event.is_channel:
         try:
             if MY_ID and event.sender_id != MY_ID:
@@ -554,6 +659,10 @@ async def saved_msg_actions(event):
                 await event.edit(f"👻 **Sent:** {event.message.text}")
             except: pass
 
+# ---------------------------------------------------------
+# 7. SERVER & STARTUP
+# ---------------------------------------------------------
+
 async def home(r): return web.Response(text="Bot Active!")
 
 async def download(r):
@@ -572,17 +681,21 @@ async def main():
     global MY_ID
     logger.info("⏳ Starting...")
     await client.start()
+
     me = await client.get_me()
     MY_ID = me.id
     logger.info(f"✅ LOGGED IN AS: {me.first_name} (ID: {MY_ID})")
+
     app = web.Application()
     app.router.add_get('/', home)
     app.router.add_get('/download/{file_id}', download)
+
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.environ.get("PORT", 8080))
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
+
     while True:
         try:
             await client(functions.account.UpdateStatusRequest(offline=False))
