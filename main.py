@@ -64,7 +64,7 @@ AFK_REASON = ""
 TARGET_CHANNEL_ID = None
 SNIPER_TEXT = None
 SNIPER_MODE = "OFF"
-# --- HUNTER ID VARIABLE (The Key Fix) ---
+# --- HUNTER ID VARIABLE ---
 HUNTER_TARGET_ID = None 
 
 # ---------------------------------------------------------
@@ -93,11 +93,10 @@ async def set_hunt_target(event):
     if not reply:
         return await event.edit("❌ **Error:** Reply to a message to hunt that user!")
     
-    # የላከውን ሰው ID በትክክል ይይዛል (Private Channel ቢሆንም ይሰራል)
-    # ቻናል ከሆነ የቻናሉን ID፣ ሰው ከሆነ የሰውየውን ID ይይዛል።
+    # የላከውን ሰው ID በትክክል ይይዛል
     HUNTER_TARGET_ID = reply.sender_id
     
-    # ስሙን ለማግኘት እንሞክር (ለማረጋገጫ ብቻ)
+    # ስሙን ለማግኘት እንሞክር (ለማረጋገጫ)
     try:
         sender = await reply.get_sender()
         name = sender.first_name if sender else getattr(sender, 'title', 'Hidden Entity')
@@ -157,10 +156,12 @@ async def ai_handler(event):
             photo_data = await reply.download_media(file=bytes)
             img = Image.open(io.BytesIO(photo_data))
             prompt = query if query else "Describe this image detail."
-            response = model.generate_content([prompt, img])
+            # Multithreading to prevent lag
+            response = await asyncio.to_thread(model.generate_content, [prompt, img])
         else:
             if not query: return await event.edit("❌ Text/Image needed")
-            response = model.generate_content(query)
+            # Multithreading to prevent lag
+            response = await asyncio.to_thread(model.generate_content, query)
 
         text = response.text
         if len(text) > 4000: text = text[:4000] + "..."
@@ -195,13 +196,12 @@ async def user_info(event):
         else: await event.edit(info)
     except: await event.edit("❌ Error")
 
-# --- HUMAN-LIKE VOICE (.say) [FIXED] ---
+# --- HUMAN-LIKE VOICE (.say) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.say (.*)"))
 async def text_to_speech(event):
     text = event.pattern_match.group(1)
     await event.edit("🗣️ **Generating Human Voice...**")
     try:
-        # Check if text contains Amharic characters
         is_amharic = any("\u1200" <= char <= "\u137F" for char in text)
         voice = 'am-ET-AmehaNeural' if is_amharic else 'en-US-ChristopherNeural'
         
@@ -554,19 +554,15 @@ async def incoming_handler(event):
         if sender and not sender.bot:
             await event.reply(f"🤖 **Auto-Reply:**\nI am currently AFK (Away From Keyboard).\n\nReason: `{AFK_REASON}`")
 
-    # --- A. SNIPER LOGIC (UPGRADED: HUNTER & SPEED) ---
+    # --- A. SNIPER LOGIC (NO-LAG & THREADED) ---
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
         
         # --- 1. HUNT FILTER (THE BULLETPROOF CHECK) ---
-        # HUNTER_TARGET_ID ከተሞላ፣ ላኪው እሱ መሆኑን ያረጋግጣል።
-        # ላኪው እሱ ካልሆነ፣ ቦቱ መልስ አይሰጥም (Return)።
-        # ይሄ "Random Reply" እንዳያደርግ የሚከለክለው ዋናው መሳሪያ ነው።
         if HUNTER_TARGET_ID and event.sender_id != HUNTER_TARGET_ID:
             return 
 
         if SNIPER_MODE == "FLASH" and SNIPER_TEXT:
             try:
-                # Millisecond response - No delay!
                 await client.send_message(event.chat_id, SNIPER_TEXT, reply_to=event.id)
                 SNIPER_MODE = "OFF"
                 await client.send_message("me", f"✅ **FLASH SNIPED:** {SNIPER_TEXT}")
@@ -575,9 +571,11 @@ async def incoming_handler(event):
             
         elif SNIPER_MODE == "QUIZ" and event.text:
             try:
-                # --- 2. FAST AI PROMPT (TURBO MODE) ---
+                # --- 2. FAST AI PROMPT (ASYNC THREADED) ---
+                # Fixes the lag issue by running AI in background
                 prompt = f"Ans: {event.text}. Short."
-                response = model.generate_content(prompt)
+                # asyncio.to_thread prevents the bot from freezing
+                response = await asyncio.to_thread(model.generate_content, prompt)
                 answer = response.text.strip()
                 
                 await client.send_message(event.chat_id, answer, reply_to=event.id)
