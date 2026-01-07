@@ -64,7 +64,7 @@ AFK_REASON = ""
 TARGET_CHANNEL_ID = None
 SNIPER_TEXT = None
 SNIPER_MODE = "OFF"
-# --- HUNTER ID VARIABLE (The Key Fix) ---
+# --- HUNTER ID VARIABLE (The Fix) ---
 HUNTER_TARGET_ID = None 
 
 # ---------------------------------------------------------
@@ -80,12 +80,12 @@ async def set_monitor(event):
     await event.delete()
     await client.send_message("me", f"🎯 **Sniper Locked on:** `{title}`\n🆔 `{TARGET_CHANNEL_ID}`")
 
-# --- IMPROVED: HUNT COMMAND (REPLY ONLY) ---
+# --- IMPROVED: HUNT COMMAND (REPLY BASED - 100% ACCURACY) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.hunt"))
 async def set_hunt_target(event):
     """
-    ይሄ በጣም ወሳኝ ነው! ስህተትን ለማስወገድ፣
-    ማደን የምትፈልገው ሰው የላከው ሜሴጅ ላይ REPLY አድርገህ .hunt በል።
+    ይሄ አዲሱ እና የተሻሻለው አዳኝ ነው።
+    ማደን የምትፈልገው (ሽልማቱን የሚለቀው) ሰው/ቻናል የላከው ሜሴጅ ላይ REPLY አድርገህ .hunt በል።
     """
     global HUNTER_TARGET_ID
     reply = await event.get_reply_message()
@@ -93,19 +93,18 @@ async def set_hunt_target(event):
     if not reply:
         return await event.edit("❌ **Error:** Reply to a message to hunt that user!")
     
-    # የላከውን ሰው ID በትክክል ይይዛል (Private Channel ቢሆንም ይሰራል)
-    # ቻናል ከሆነ የቻናሉን ID፣ ሰው ከሆነ የሰውየውን ID ይይዛል።
+    # የላከውን ሰው (ወይም ቻናል) ID በትክክል ይይዛል
     HUNTER_TARGET_ID = reply.sender_id
     
-    # ስሙን ለማግኘት እንሞክር (ለማረጋገጫ ብቻ)
+    # ስሙን ለማግኘት (ለማረጋገጫ)
     try:
         sender = await reply.get_sender()
-        name = sender.first_name if sender else getattr(sender, 'title', 'Hidden Entity')
+        name = sender.first_name if sender else getattr(sender, 'title', 'Unknown Entity')
     except:
-        name = "Unknown Target"
+        name = "Hidden Target"
 
     await event.delete()
-    await client.send_message("me", f"🦅 **Hunter Protocol Active!**\n\n🎯 **Target:** `{name}`\n🆔 **ID:** `{HUNTER_TARGET_ID}`\n\n⚠️ **NOTE:** System locked. Will ONLY reply if THIS ID speaks.")
+    await client.send_message("me", f"🦅 **Hunter Protocol Active!**\n\n🎯 **Target:** `{name}`\n🆔 **ID:** `{HUNTER_TARGET_ID}`\n\n⚠️ **NOTE:** System LOCKED. I will ONLY trigger if this specific ID posts.")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.win (.*)"))
 async def set_flash_mode(event):
@@ -115,13 +114,12 @@ async def set_flash_mode(event):
     SNIPER_MODE = "FLASH"
     await event.delete()
     
-    # ሁኔታውን ማረጋገጥ
     status = f"⚡ **Flash Mode ARMED!**\nAuto-Reply: `{SNIPER_TEXT}`"
     if HUNTER_TARGET_ID:
-        status += "\n🔒 **Target Locked:** YES (SECURE MODE)"
+        status += "\n🔒 **Target Locked:** YES (SECURE)"
     else:
-        status += "\n⚠️ **Target Locked:** NO (RISKY - WILL FIRE AT ANYONE)"
-        
+        status += "\n⚠️ **Target Locked:** NO (RISKY - Replies to everyone)"
+    
     await client.send_message("me", status)
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.quiz"))
@@ -130,7 +128,7 @@ async def set_quiz_mode(event):
     global SNIPER_MODE
     SNIPER_MODE = "QUIZ"
     await event.delete()
-    await client.send_message("me", f"🧠 **Quiz Mode (TURBO) ARMED!**\nAI optimized for millisecond response.")
+    await client.send_message("me", f"🧠 **Quiz Mode ARMED!**\nAI optimized for short answers.")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.stop"))
 async def stop_sniper(event):
@@ -140,7 +138,7 @@ async def stop_sniper(event):
     TARGET_CHANNEL_ID = None
     HUNTER_TARGET_ID = None 
     await event.delete()
-    await client.send_message("me", "🛑 **Sniper & Hunter Disengaged.**\nAll targets cleared.")
+    await client.send_message("me", "🛑 **Sniper & Hunter Disengaged.**\nTargets Cleared.")
 
 # ---------------------------------------------------------
 # 3. GOD MODE COMMANDS
@@ -195,13 +193,11 @@ async def user_info(event):
         else: await event.edit(info)
     except: await event.edit("❌ Error")
 
-# --- HUMAN-LIKE VOICE (.say) [FIXED] ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.say (.*)"))
 async def text_to_speech(event):
     text = event.pattern_match.group(1)
     await event.edit("🗣️ **Generating Human Voice...**")
     try:
-        # Check if text contains Amharic characters
         is_amharic = any("\u1200" <= char <= "\u137F" for char in text)
         voice = 'am-ET-AmehaNeural' if is_amharic else 'en-US-ChristopherNeural'
         
@@ -324,11 +320,11 @@ async def download_song(event):
             'geo_bypass': True,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Try YouTube first
+            # 1. YouTube ሙከራ
             try:
                 info = ydl.extract_info(f"ytsearch:{song_name}", download=False)
             except Exception:
-                # Fallback to SoundCloud
+                # 2. YouTube ካልሰራ ወደ SoundCloud
                 await event.edit(f"⚠️ **YouTube Blocked! Bypassing via SoundCloud...**")
                 info = ydl.extract_info(f"scsearch:{song_name}", download=False)
 
@@ -368,6 +364,8 @@ async def set_video_profile(event):
     try:
         video_path = await client.download_media(reply, file="vpic_raw.mp4")
         trimmed_path = "vpic_safe.mp4"
+        
+        # Simple OS System Call (Stable)
         trim_cmd = f'ffmpeg -i "{video_path}" -t 9 -vf scale="720:720:force_original_aspect_ratio=decrease,pad=720:720:(ow-iw)/2:(oh-ih)/2" -c:v libx264 -pix_fmt yuv420p "{trimmed_path}" -y'
         os.system(trim_cmd)
         
@@ -554,19 +552,15 @@ async def incoming_handler(event):
         if sender and not sender.bot:
             await event.reply(f"🤖 **Auto-Reply:**\nI am currently AFK (Away From Keyboard).\n\nReason: `{AFK_REASON}`")
 
-    # --- A. SNIPER LOGIC (UPGRADED: HUNTER & SPEED) ---
+    # --- A. SNIPER LOGIC (NO-LAG & ACCURATE) ---
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
         
         # --- 1. HUNT FILTER (THE BULLETPROOF CHECK) ---
-        # HUNTER_TARGET_ID ከተሞላ፣ ላኪው እሱ መሆኑን ያረጋግጣል።
-        # ላኪው እሱ ካልሆነ፣ ቦቱ መልስ አይሰጥም (Return)።
-        # ይሄ "Random Reply" እንዳያደርግ የሚከለክለው ዋናው መሳሪያ ነው።
         if HUNTER_TARGET_ID and event.sender_id != HUNTER_TARGET_ID:
             return 
 
         if SNIPER_MODE == "FLASH" and SNIPER_TEXT:
             try:
-                # Millisecond response - No delay!
                 await client.send_message(event.chat_id, SNIPER_TEXT, reply_to=event.id)
                 SNIPER_MODE = "OFF"
                 await client.send_message("me", f"✅ **FLASH SNIPED:** {SNIPER_TEXT}")
@@ -575,7 +569,8 @@ async def incoming_handler(event):
             
         elif SNIPER_MODE == "QUIZ" and event.text:
             try:
-                # --- 2. FAST AI PROMPT (TURBO MODE) ---
+                # --- 2. FAST AI PROMPT ---
+                # No complex threading, just direct execution
                 prompt = f"Ans: {event.text}. Short."
                 response = model.generate_content(prompt)
                 answer = response.text.strip()
