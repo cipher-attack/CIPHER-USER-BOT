@@ -64,8 +64,8 @@ AFK_REASON = ""
 TARGET_CHANNEL_ID = None
 SNIPER_TEXT = None
 SNIPER_MODE = "OFF"
-# --- HUNTER ID VARIABLE ---
-HUNTER_TARGET_ID = None  # የተለየ ሰው/ቻናል ለማደን
+# --- HUNTER ID VARIABLE (The Key Fix) ---
+HUNTER_TARGET_ID = None 
 
 # ---------------------------------------------------------
 # 2. GIVEAWAY SNIPER COMMANDS
@@ -80,7 +80,7 @@ async def set_monitor(event):
     await event.delete()
     await client.send_message("me", f"🎯 **Sniper Locked on:** `{title}`\n🆔 `{TARGET_CHANNEL_ID}`")
 
-# --- IMPROVED: HUNT COMMAND (REPLY BASED) ---
+# --- IMPROVED: HUNT COMMAND (REPLY ONLY) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.hunt"))
 async def set_hunt_target(event):
     """
@@ -93,18 +93,19 @@ async def set_hunt_target(event):
     if not reply:
         return await event.edit("❌ **Error:** Reply to a message to hunt that user!")
     
-    # የላከውን ሰው ID በትክክል ይይዛል
+    # የላከውን ሰው ID በትክክል ይይዛል (Private Channel ቢሆንም ይሰራል)
+    # ቻናል ከሆነ የቻናሉን ID፣ ሰው ከሆነ የሰውየውን ID ይይዛል።
     HUNTER_TARGET_ID = reply.sender_id
     
-    # ስሙን ለማግኘት እንሞክር (ለማረጋገጫ)
+    # ስሙን ለማግኘት እንሞክር (ለማረጋገጫ ብቻ)
     try:
         sender = await reply.get_sender()
-        name = sender.first_name if sender else "Unknown"
+        name = sender.first_name if sender else getattr(sender, 'title', 'Hidden Entity')
     except:
-        name = "Hidden User"
+        name = "Unknown Target"
 
     await event.delete()
-    await client.send_message("me", f"🦅 **Hunter Protocol Active!**\n\n🎯 **Target:** `{name}`\n🆔 **ID:** `{HUNTER_TARGET_ID}`\n\n⚠️ **NOTE:** I will ONLY shoot if THIS specific user sends a message.")
+    await client.send_message("me", f"🦅 **Hunter Protocol Active!**\n\n🎯 **Target:** `{name}`\n🆔 **ID:** `{HUNTER_TARGET_ID}`\n\n⚠️ **NOTE:** System locked. Will ONLY reply if THIS ID speaks.")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.win (.*)"))
 async def set_flash_mode(event):
@@ -117,9 +118,9 @@ async def set_flash_mode(event):
     # ሁኔታውን ማረጋገጥ
     status = f"⚡ **Flash Mode ARMED!**\nAuto-Reply: `{SNIPER_TEXT}`"
     if HUNTER_TARGET_ID:
-        status += "\n🔒 **Target Locked:** YES (Safe Mode)"
+        status += "\n🔒 **Target Locked:** YES (SECURE MODE)"
     else:
-        status += "\n⚠️ **Target Locked:** NO (Will shoot at ANYONE)"
+        status += "\n⚠️ **Target Locked:** NO (RISKY - WILL FIRE AT ANYONE)"
         
     await client.send_message("me", status)
 
@@ -194,18 +195,22 @@ async def user_info(event):
         else: await event.edit(info)
     except: await event.edit("❌ Error")
 
-# --- HUMAN-LIKE VOICE (.say) ---
+# --- HUMAN-LIKE VOICE (.say) [FIXED] ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.say (.*)"))
 async def text_to_speech(event):
     text = event.pattern_match.group(1)
     await event.edit("🗣️ **Generating Human Voice...**")
     try:
+        # Check if text contains Amharic characters
         is_amharic = any("\u1200" <= char <= "\u137F" for char in text)
         voice = 'am-ET-AmehaNeural' if is_amharic else 'en-US-ChristopherNeural'
+        
         communicate = edge_tts.Communicate(text, voice)
         filename = "human_voice.mp3"
         await communicate.save(filename)
+        
         await client.send_file(event.chat_id, filename, voice_note=True, caption=None)
+        
         if os.path.exists(filename):
             os.remove(filename)
         await event.delete()
@@ -304,7 +309,7 @@ async def scrape_members(event):
 # 4. UTILITIES (Premium Tools)
 # ---------------------------------------------------------
 
-# --- MUSIC DOWNLOADER ---
+# --- MUSIC DOWNLOADER (Dual Mode) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.song (.*)"))
 async def download_song(event):
     song_name = event.pattern_match.group(1)
@@ -319,9 +324,11 @@ async def download_song(event):
             'geo_bypass': True,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Try YouTube first
             try:
                 info = ydl.extract_info(f"ytsearch:{song_name}", download=False)
             except Exception:
+                # Fallback to SoundCloud
                 await event.edit(f"⚠️ **YouTube Blocked! Bypassing via SoundCloud...**")
                 info = ydl.extract_info(f"scsearch:{song_name}", download=False)
 
@@ -550,10 +557,10 @@ async def incoming_handler(event):
     # --- A. SNIPER LOGIC (UPGRADED: HUNTER & SPEED) ---
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
         
-        # --- 1. HUNT FILTER (CRITICAL FIX) ---
+        # --- 1. HUNT FILTER (THE BULLETPROOF CHECK) ---
         # HUNTER_TARGET_ID ከተሞላ፣ ላኪው እሱ መሆኑን ያረጋግጣል።
         # ላኪው እሱ ካልሆነ፣ ቦቱ መልስ አይሰጥም (Return)።
-        # ይሄ ነው "Random Reply" እንዳያደርግ የሚከለክለው።
+        # ይሄ "Random Reply" እንዳያደርግ የሚከለክለው ዋናው መሳሪያ ነው።
         if HUNTER_TARGET_ID and event.sender_id != HUNTER_TARGET_ID:
             return 
 
@@ -569,7 +576,6 @@ async def incoming_handler(event):
         elif SNIPER_MODE == "QUIZ" and event.text:
             try:
                 # --- 2. FAST AI PROMPT (TURBO MODE) ---
-                # ትዕዛዙ በጣም አጭር ስለሆነ AI ወዲያውኑ ይመልሳል።
                 prompt = f"Ans: {event.text}. Short."
                 response = model.generate_content(prompt)
                 answer = response.text.strip()
