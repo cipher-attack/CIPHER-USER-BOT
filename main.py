@@ -152,15 +152,16 @@ async def ai_handler(event):
     reply = await event.get_reply_message()
     await event.edit("🧠")
     try:
+        # THREADING: AI እንዲያስብ ስናዘው ቦቱ እንዳይቆም (Anti-Lag)
         if reply and reply.media and reply.photo:
             photo_data = await reply.download_media(file=bytes)
             img = Image.open(io.BytesIO(photo_data))
             prompt = query if query else "Describe this image detail."
-            # Multithreading to prevent lag
+            # Running AI in background thread
             response = await asyncio.to_thread(model.generate_content, [prompt, img])
         else:
             if not query: return await event.edit("❌ Text/Image needed")
-            # Multithreading to prevent lag
+            # Running AI in background thread
             response = await asyncio.to_thread(model.generate_content, query)
 
         text = response.text
@@ -309,7 +310,7 @@ async def scrape_members(event):
 # 4. UTILITIES (Premium Tools)
 # ---------------------------------------------------------
 
-# --- MUSIC DOWNLOADER (Dual Mode) ---
+# --- MUSIC DOWNLOADER (Anti-Lag & Dual Mode) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.song (.*)"))
 async def download_song(event):
     song_name = event.pattern_match.group(1)
@@ -323,42 +324,42 @@ async def download_song(event):
             'nocheckcertificate': True,
             'geo_bypass': True,
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Try YouTube first
-            try:
-                info = ydl.extract_info(f"ytsearch:{song_name}", download=False)
-            except Exception:
-                # Fallback to SoundCloud
-                await event.edit(f"⚠️ **YouTube Blocked! Bypassing via SoundCloud...**")
-                info = ydl.extract_info(f"scsearch:{song_name}", download=False)
+        
+        # Helper function to run download in background
+        def run_download(opts, query, source):
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                return ydl.extract_info(f"{source}:{query}", download=True)
 
-            if 'entries' in info and len(info['entries']) > 0:
-                video = info['entries'][0]
-                title = video['title']
-                duration = video.get('duration', 0)
-                webpage_url = video['webpage_url']
-                
-                await event.edit(f"⬇️ **Downloading:** `{title}`...")
-                ydl.download([webpage_url])
-                
-                await event.edit(f"⬆️ **Uploading...**")
-                
-                for ext in ['webm', 'm4a', 'mp3', 'opus']:
-                    if os.path.exists(f"downloaded_song.{ext}"):
-                        await client.send_file(
-                            event.chat_id, f'downloaded_song.{ext}',
-                            caption=f"🎧 **Song:** {title}\n⏱ **Duration:** {duration} sec\n👤 **By:** Cipher Bot",
-                            supports_streaming=True
-                        )
-                        os.remove(f"downloaded_song.{ext}")
-                        break
-                
-                await event.delete()
-            else: await event.edit("❌ **Song not found!**")
+        # THREADING: Running download in background to prevent freezing
+        try:
+            info = await asyncio.to_thread(run_download, ydl_opts, song_name, "ytsearch")
+        except Exception:
+            await event.edit(f"⚠️ **YouTube Blocked! Switching to SoundCloud...**")
+            info = await asyncio.to_thread(run_download, ydl_opts, song_name, "scsearch")
+
+        if 'entries' in info and len(info['entries']) > 0:
+            video = info['entries'][0]
+            title = video['title']
+            duration = video.get('duration', 0)
+            
+            await event.edit(f"⬆️ **Uploading...**")
+            
+            for ext in ['webm', 'm4a', 'mp3', 'opus']:
+                if os.path.exists(f"downloaded_song.{ext}"):
+                    await client.send_file(
+                        event.chat_id, f'downloaded_song.{ext}',
+                        caption=f"🎧 **Song:** {title}\n⏱ **Duration:** {duration} sec\n👤 **By:** Cipher Bot",
+                        supports_streaming=True
+                    )
+                    os.remove(f"downloaded_song.{ext}")
+                    break
+            
+            await event.delete()
+        else: await event.edit("❌ **Song not found!**")
     except Exception as e:
         await event.edit(f"❌ Error: {e}")
 
-# --- VIDEO PROFILE SETTER (.vpic) ---
+# --- VIDEO PROFILE SETTER (.vpic) [Anti-Lag] ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.vpic"))
 async def set_video_profile(event):
     reply = await event.get_reply_message()
@@ -368,8 +369,10 @@ async def set_video_profile(event):
     try:
         video_path = await client.download_media(reply, file="vpic_raw.mp4")
         trimmed_path = "vpic_safe.mp4"
+        
+        # THREADING: Running FFmpeg in background
         trim_cmd = f'ffmpeg -i "{video_path}" -t 9 -vf scale="720:720:force_original_aspect_ratio=decrease,pad=720:720:(ow-iw)/2:(oh-ih)/2" -c:v libx264 -pix_fmt yuv420p "{trimmed_path}" -y'
-        os.system(trim_cmd)
+        await asyncio.to_thread(os.system, trim_cmd)
         
         upload_file = trimmed_path if os.path.exists(trimmed_path) else video_path
 
@@ -563,6 +566,7 @@ async def incoming_handler(event):
 
         if SNIPER_MODE == "FLASH" and SNIPER_TEXT:
             try:
+                # Millisecond response - No delay!
                 await client.send_message(event.chat_id, SNIPER_TEXT, reply_to=event.id)
                 SNIPER_MODE = "OFF"
                 await client.send_message("me", f"✅ **FLASH SNIPED:** {SNIPER_TEXT}")
@@ -697,7 +701,8 @@ async def main():
     while True:
         try:
             await client(functions.account.UpdateStatusRequest(offline=False))
-            await asyncio.sleep(60)
+            # Increased Sleep time to avoid FloodWait and CPU throttling
+            await asyncio.sleep(200) 
         except: await asyncio.sleep(10)
 
 if __name__ == '__main__':
