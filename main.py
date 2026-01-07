@@ -4,7 +4,7 @@ import logging
 import io
 import random
 import yt_dlp
-import edge_tts # --- NEW: Human-Like Voice Engine ---
+import edge_tts
 from telethon import TelegramClient, events, functions, types
 from telethon.sessions import StringSession
 from telethon.tl.functions.messages import GetStickerSetRequest
@@ -64,7 +64,7 @@ AFK_REASON = ""
 TARGET_CHANNEL_ID = None
 SNIPER_TEXT = None
 SNIPER_MODE = "OFF"
-# --- NEW: HUNTER ID VARIABLE ---
+# --- HUNTER ID VARIABLE ---
 HUNTER_TARGET_ID = None  # የተለየ ሰው/ቻናል ለማደን
 
 # ---------------------------------------------------------
@@ -80,25 +80,31 @@ async def set_monitor(event):
     await event.delete()
     await client.send_message("me", f"🎯 **Sniper Locked on:** `{title}`\n🆔 `{TARGET_CHANNEL_ID}`")
 
-# --- NEW: HUNT COMMAND (To Lock specific user/admin) ---
-@client.on(events.NewMessage(outgoing=True, pattern=r"^\.hunt (.*)"))
+# --- IMPROVED: HUNT COMMAND (REPLY BASED) ---
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.hunt"))
 async def set_hunt_target(event):
-    """ግሩፕ ውስጥ የተለየን ሰው/አድሚን ብቻ ለይቶ ለማደን"""
+    """
+    ይሄ በጣም ወሳኝ ነው! ስህተትን ለማስወገድ፣
+    ማደን የምትፈልገው ሰው የላከው ሜሴጅ ላይ REPLY አድርገህ .hunt በል።
+    """
     global HUNTER_TARGET_ID
-    input_str = event.pattern_match.group(1)
+    reply = await event.get_reply_message()
     
+    if not reply:
+        return await event.edit("❌ **Error:** Reply to a message to hunt that user!")
+    
+    # የላከውን ሰው ID በትክክል ይይዛል
+    HUNTER_TARGET_ID = reply.sender_id
+    
+    # ስሙን ለማግኘት እንሞክር (ለማረጋገጫ)
     try:
-        # User ID ወይም Username ይቀበላል
-        if input_str.isdigit():
-            user = await client.get_entity(int(input_str))
-        else:
-            user = await client.get_entity(input_str)
-            
-        HUNTER_TARGET_ID = user.id
-        await event.delete()
-        await client.send_message("me", f"🦅 **Hunter Protocol Active!**\nTargeting: `{user.first_name}` (ID: `{user.id}`)\nOnly messages from this user will trigger the sniper.")
-    except Exception as e:
-        await event.edit(f"❌ Error: {e}")
+        sender = await reply.get_sender()
+        name = sender.first_name if sender else "Unknown"
+    except:
+        name = "Hidden User"
+
+    await event.delete()
+    await client.send_message("me", f"🦅 **Hunter Protocol Active!**\n\n🎯 **Target:** `{name}`\n🆔 **ID:** `{HUNTER_TARGET_ID}`\n\n⚠️ **NOTE:** I will ONLY shoot if THIS specific user sends a message.")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.win (.*)"))
 async def set_flash_mode(event):
@@ -107,7 +113,15 @@ async def set_flash_mode(event):
     SNIPER_TEXT = event.pattern_match.group(1)
     SNIPER_MODE = "FLASH"
     await event.delete()
-    await client.send_message("me", f"⚡ **Flash Mode ARMED!**\nAuto-Reply: `{SNIPER_TEXT}`")
+    
+    # ሁኔታውን ማረጋገጥ
+    status = f"⚡ **Flash Mode ARMED!**\nAuto-Reply: `{SNIPER_TEXT}`"
+    if HUNTER_TARGET_ID:
+        status += "\n🔒 **Target Locked:** YES (Safe Mode)"
+    else:
+        status += "\n⚠️ **Target Locked:** NO (Will shoot at ANYONE)"
+        
+    await client.send_message("me", status)
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.quiz"))
 async def set_quiz_mode(event):
@@ -115,7 +129,6 @@ async def set_quiz_mode(event):
     global SNIPER_MODE
     SNIPER_MODE = "QUIZ"
     await event.delete()
-    # Turbo Mode ማስታወቂያ
     await client.send_message("me", f"🧠 **Quiz Mode (TURBO) ARMED!**\nAI optimized for millisecond response.")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.stop"))
@@ -124,9 +137,9 @@ async def stop_sniper(event):
     global SNIPER_MODE, TARGET_CHANNEL_ID, HUNTER_TARGET_ID
     SNIPER_MODE = "OFF"
     TARGET_CHANNEL_ID = None
-    HUNTER_TARGET_ID = None # ኢላማውንም ያጠፋል
+    HUNTER_TARGET_ID = None 
     await event.delete()
-    await client.send_message("me", "🛑 **Sniper & Hunter Disengaged.**")
+    await client.send_message("me", "🛑 **Sniper & Hunter Disengaged.**\nAll targets cleared.")
 
 # ---------------------------------------------------------
 # 3. GOD MODE COMMANDS
@@ -181,25 +194,18 @@ async def user_info(event):
         else: await event.edit(info)
     except: await event.edit("❌ Error")
 
-# --- HUMAN-LIKE VOICE (.say) [UPDATED: NEURAL TTS] ---
+# --- HUMAN-LIKE VOICE (.say) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.say (.*)"))
 async def text_to_speech(event):
     text = event.pattern_match.group(1)
     await event.edit("🗣️ **Generating Human Voice...**")
     try:
-        # አማርኛ ፊደል ካለበት የአማርኛ ድምፅ፣ ከሌለ የእንግሊዝኛ ወንድ ድምፅ ይመርጣል
         is_amharic = any("\u1200" <= char <= "\u137F" for char in text)
-        
-        # Voice Selection: Amharic (Ameha) or English (Christopher - Deep/Hacker style)
         voice = 'am-ET-AmehaNeural' if is_amharic else 'en-US-ChristopherNeural'
-        
         communicate = edge_tts.Communicate(text, voice)
         filename = "human_voice.mp3"
-        
         await communicate.save(filename)
-        
         await client.send_file(event.chat_id, filename, voice_note=True, caption=None)
-        
         if os.path.exists(filename):
             os.remove(filename)
         await event.delete()
@@ -298,7 +304,7 @@ async def scrape_members(event):
 # 4. UTILITIES (Premium Tools)
 # ---------------------------------------------------------
 
-# --- MUSIC DOWNLOADER (Dual Mode: YT + SoundCloud) ---
+# --- MUSIC DOWNLOADER ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.song (.*)"))
 async def download_song(event):
     song_name = event.pattern_match.group(1)
@@ -313,11 +319,9 @@ async def download_song(event):
             'geo_bypass': True,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # 1. YouTube ሙከራ
             try:
                 info = ydl.extract_info(f"ytsearch:{song_name}", download=False)
             except Exception:
-                # 2. YouTube ካልሰራ ወደ SoundCloud
                 await event.edit(f"⚠️ **YouTube Blocked! Bypassing via SoundCloud...**")
                 info = ydl.extract_info(f"scsearch:{song_name}", download=False)
 
@@ -347,7 +351,7 @@ async def download_song(event):
     except Exception as e:
         await event.edit(f"❌ Error: {e}")
 
-# --- VIDEO PROFILE SETTER (.vpic) [IMPROVED: AUTO-TRIMMER] ---
+# --- VIDEO PROFILE SETTER (.vpic) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.vpic"))
 async def set_video_profile(event):
     reply = await event.get_reply_message()
@@ -355,17 +359,11 @@ async def set_video_profile(event):
         return await event.edit("❌ Reply to a video or GIF!")
     await event.edit("🔄 **Processing Video Profile...**")
     try:
-        # 1. ቪዲዮውን ማውረድ
         video_path = await client.download_media(reply, file="vpic_raw.mp4")
-        
-        # 2. BYPASS: ቴሌግራም እስከ 10 ሰከንድ ስለሚፈልግ፣ FFmpeg ተጠቅመን
-        #    የ 30 ሰከንዱን ቪዲዮ ወደ 9 ሰከንድ እንቆርጠዋለን (Trim)
         trimmed_path = "vpic_safe.mp4"
-        # Command: 9 ሰከንድ ቆርጦ፣ 720x720 አድርጎ ያስተካክላል
         trim_cmd = f'ffmpeg -i "{video_path}" -t 9 -vf scale="720:720:force_original_aspect_ratio=decrease,pad=720:720:(ow-iw)/2:(oh-ih)/2" -c:v libx264 -pix_fmt yuv420p "{trimmed_path}" -y'
         os.system(trim_cmd)
         
-        # 3. የተቆረጠው ካለ እሱን፣ ከሌለ (ከተበላሸ) ዋናውን እንጭናለን
         upload_file = trimmed_path if os.path.exists(trimmed_path) else video_path
 
         await client(functions.photos.UploadProfilePhotoRequest(
@@ -375,7 +373,6 @@ async def set_video_profile(event):
         
         await event.edit("✅ **New Video Profile Set! (Auto-Trimmed)**")
         
-        # Cleanup
         if os.path.exists(video_path): os.remove(video_path)
         if os.path.exists(trimmed_path): os.remove(trimmed_path)
         
@@ -553,9 +550,10 @@ async def incoming_handler(event):
     # --- A. SNIPER LOGIC (UPGRADED: HUNTER & SPEED) ---
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
         
-        # --- 1. HUNT FILTER (የአድሚን ለይቶ ማደን) ---
-        # HUNTER_TARGET_ID ካለ፣ የላከው ሰው እሱ መሆኑን ማረጋገጥ አለበት።
-        # እሱ ካልሆነ ዝም ብሎ ያልፈዋል (Ignore)።
+        # --- 1. HUNT FILTER (CRITICAL FIX) ---
+        # HUNTER_TARGET_ID ከተሞላ፣ ላኪው እሱ መሆኑን ያረጋግጣል።
+        # ላኪው እሱ ካልሆነ፣ ቦቱ መልስ አይሰጥም (Return)።
+        # ይሄ ነው "Random Reply" እንዳያደርግ የሚከለክለው።
         if HUNTER_TARGET_ID and event.sender_id != HUNTER_TARGET_ID:
             return 
 
