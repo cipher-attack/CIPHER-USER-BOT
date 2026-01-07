@@ -4,7 +4,7 @@ import logging
 import io
 import random
 import yt_dlp
-import edge_tts
+import edge_tts # --- NEW: Human-Like Voice Engine ---
 from telethon import TelegramClient, events, functions, types
 from telethon.sessions import StringSession
 from telethon.tl.functions.messages import GetStickerSetRequest
@@ -64,8 +64,8 @@ AFK_REASON = ""
 TARGET_CHANNEL_ID = None
 SNIPER_TEXT = None
 SNIPER_MODE = "OFF"
-# --- HUNTER ID VARIABLE (The Fix) ---
-HUNTER_TARGET_ID = None 
+# --- NEW: HUNTER ID VARIABLE ---
+HUNTER_TARGET_ID = None  # የተለየ ሰው/ቻናል ለማደን
 
 # ---------------------------------------------------------
 # 2. GIVEAWAY SNIPER COMMANDS
@@ -80,31 +80,25 @@ async def set_monitor(event):
     await event.delete()
     await client.send_message("me", f"🎯 **Sniper Locked on:** `{title}`\n🆔 `{TARGET_CHANNEL_ID}`")
 
-# --- IMPROVED: HUNT COMMAND (REPLY BASED - 100% ACCURACY) ---
-@client.on(events.NewMessage(outgoing=True, pattern=r"^\.hunt"))
+# --- NEW: HUNT COMMAND (To Lock specific user/admin) ---
+@client.on(events.NewMessage(outgoing=True, pattern=r"^\.hunt (.*)"))
 async def set_hunt_target(event):
-    """
-    ይሄ አዲሱ እና የተሻሻለው አዳኝ ነው።
-    ማደን የምትፈልገው (ሽልማቱን የሚለቀው) ሰው/ቻናል የላከው ሜሴጅ ላይ REPLY አድርገህ .hunt በል።
-    """
+    """ግሩፕ ውስጥ የተለየን ሰው/አድሚን ብቻ ለይቶ ለማደን"""
     global HUNTER_TARGET_ID
-    reply = await event.get_reply_message()
+    input_str = event.pattern_match.group(1)
     
-    if not reply:
-        return await event.edit("❌ **Error:** Reply to a message to hunt that user!")
-    
-    # የላከውን ሰው (ወይም ቻናል) ID በትክክል ይይዛል
-    HUNTER_TARGET_ID = reply.sender_id
-    
-    # ስሙን ለማግኘት (ለማረጋገጫ)
     try:
-        sender = await reply.get_sender()
-        name = sender.first_name if sender else getattr(sender, 'title', 'Unknown Entity')
-    except:
-        name = "Hidden Target"
-
-    await event.delete()
-    await client.send_message("me", f"🦅 **Hunter Protocol Active!**\n\n🎯 **Target:** `{name}`\n🆔 **ID:** `{HUNTER_TARGET_ID}`\n\n⚠️ **NOTE:** System LOCKED. I will ONLY trigger if this specific ID posts.")
+        # User ID ወይም Username ይቀበላል
+        if input_str.isdigit():
+            user = await client.get_entity(int(input_str))
+        else:
+            user = await client.get_entity(input_str)
+            
+        HUNTER_TARGET_ID = user.id
+        await event.delete()
+        await client.send_message("me", f"🦅 **Hunter Protocol Active!**\nTargeting: `{user.first_name}` (ID: `{user.id}`)\nOnly messages from this user will trigger the sniper.")
+    except Exception as e:
+        await event.edit(f"❌ Error: {e}")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.win (.*)"))
 async def set_flash_mode(event):
@@ -113,14 +107,7 @@ async def set_flash_mode(event):
     SNIPER_TEXT = event.pattern_match.group(1)
     SNIPER_MODE = "FLASH"
     await event.delete()
-    
-    status = f"⚡ **Flash Mode ARMED!**\nAuto-Reply: `{SNIPER_TEXT}`"
-    if HUNTER_TARGET_ID:
-        status += "\n🔒 **Target Locked:** YES (SECURE)"
-    else:
-        status += "\n⚠️ **Target Locked:** NO (RISKY - Replies to everyone)"
-    
-    await client.send_message("me", status)
+    await client.send_message("me", f"⚡ **Flash Mode ARMED!**\nAuto-Reply: `{SNIPER_TEXT}`")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.quiz"))
 async def set_quiz_mode(event):
@@ -128,7 +115,8 @@ async def set_quiz_mode(event):
     global SNIPER_MODE
     SNIPER_MODE = "QUIZ"
     await event.delete()
-    await client.send_message("me", f"🧠 **Quiz Mode ARMED!**\nAI optimized for short answers.")
+    # Turbo Mode ማስታወቂያ
+    await client.send_message("me", f"🧠 **Quiz Mode (TURBO) ARMED!**\nAI optimized for millisecond response.")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.stop"))
 async def stop_sniper(event):
@@ -136,9 +124,9 @@ async def stop_sniper(event):
     global SNIPER_MODE, TARGET_CHANNEL_ID, HUNTER_TARGET_ID
     SNIPER_MODE = "OFF"
     TARGET_CHANNEL_ID = None
-    HUNTER_TARGET_ID = None 
+    HUNTER_TARGET_ID = None # ኢላማውንም ያጠፋል
     await event.delete()
-    await client.send_message("me", "🛑 **Sniper & Hunter Disengaged.**\nTargets Cleared.")
+    await client.send_message("me", "🛑 **Sniper & Hunter Disengaged.**")
 
 # ---------------------------------------------------------
 # 3. GOD MODE COMMANDS
@@ -193,16 +181,21 @@ async def user_info(event):
         else: await event.edit(info)
     except: await event.edit("❌ Error")
 
+# --- HUMAN-LIKE VOICE (.say) [UPDATED: NEURAL TTS] ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.say (.*)"))
 async def text_to_speech(event):
     text = event.pattern_match.group(1)
     await event.edit("🗣️ **Generating Human Voice...**")
     try:
+        # አማርኛ ፊደል ካለበት የአማርኛ ድምፅ፣ ከሌለ የእንግሊዝኛ ወንድ ድምፅ ይመርጣል
         is_amharic = any("\u1200" <= char <= "\u137F" for char in text)
+        
+        # Voice Selection: Amharic (Ameha) or English (Christopher - Deep/Hacker style)
         voice = 'am-ET-AmehaNeural' if is_amharic else 'en-US-ChristopherNeural'
         
         communicate = edge_tts.Communicate(text, voice)
         filename = "human_voice.mp3"
+        
         await communicate.save(filename)
         
         await client.send_file(event.chat_id, filename, voice_note=True, caption=None)
@@ -305,7 +298,7 @@ async def scrape_members(event):
 # 4. UTILITIES (Premium Tools)
 # ---------------------------------------------------------
 
-# --- MUSIC DOWNLOADER (Dual Mode) ---
+# --- MUSIC DOWNLOADER (Dual Mode: YT + SoundCloud) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.song (.*)"))
 async def download_song(event):
     song_name = event.pattern_match.group(1)
@@ -354,7 +347,7 @@ async def download_song(event):
     except Exception as e:
         await event.edit(f"❌ Error: {e}")
 
-# --- VIDEO PROFILE SETTER (.vpic) ---
+# --- VIDEO PROFILE SETTER (.vpic) [IMPROVED: AUTO-TRIMMER] ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.vpic"))
 async def set_video_profile(event):
     reply = await event.get_reply_message()
@@ -362,13 +355,17 @@ async def set_video_profile(event):
         return await event.edit("❌ Reply to a video or GIF!")
     await event.edit("🔄 **Processing Video Profile...**")
     try:
+        # 1. ቪዲዮውን ማውረድ
         video_path = await client.download_media(reply, file="vpic_raw.mp4")
-        trimmed_path = "vpic_safe.mp4"
         
-        # Simple OS System Call (Stable)
+        # 2. BYPASS: ቴሌግራም እስከ 10 ሰከንድ ስለሚፈልግ፣ FFmpeg ተጠቅመን
+        #    የ 30 ሰከንዱን ቪዲዮ ወደ 9 ሰከንድ እንቆርጠዋለን (Trim)
+        trimmed_path = "vpic_safe.mp4"
+        # Command: 9 ሰከንድ ቆርጦ፣ 720x720 አድርጎ ያስተካክላል
         trim_cmd = f'ffmpeg -i "{video_path}" -t 9 -vf scale="720:720:force_original_aspect_ratio=decrease,pad=720:720:(ow-iw)/2:(oh-ih)/2" -c:v libx264 -pix_fmt yuv420p "{trimmed_path}" -y'
         os.system(trim_cmd)
         
+        # 3. የተቆረጠው ካለ እሱን፣ ከሌለ (ከተበላሸ) ዋናውን እንጭናለን
         upload_file = trimmed_path if os.path.exists(trimmed_path) else video_path
 
         await client(functions.photos.UploadProfilePhotoRequest(
@@ -378,6 +375,7 @@ async def set_video_profile(event):
         
         await event.edit("✅ **New Video Profile Set! (Auto-Trimmed)**")
         
+        # Cleanup
         if os.path.exists(video_path): os.remove(video_path)
         if os.path.exists(trimmed_path): os.remove(trimmed_path)
         
@@ -552,15 +550,18 @@ async def incoming_handler(event):
         if sender and not sender.bot:
             await event.reply(f"🤖 **Auto-Reply:**\nI am currently AFK (Away From Keyboard).\n\nReason: `{AFK_REASON}`")
 
-    # --- A. SNIPER LOGIC (NO-LAG & ACCURATE) ---
+    # --- A. SNIPER LOGIC (UPGRADED: HUNTER & SPEED) ---
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
         
-        # --- 1. HUNT FILTER (THE BULLETPROOF CHECK) ---
+        # --- 1. HUNT FILTER (የአድሚን ለይቶ ማደን) ---
+        # HUNTER_TARGET_ID ካለ፣ የላከው ሰው እሱ መሆኑን ማረጋገጥ አለበት።
+        # እሱ ካልሆነ ዝም ብሎ ያልፈዋል (Ignore)።
         if HUNTER_TARGET_ID and event.sender_id != HUNTER_TARGET_ID:
             return 
 
         if SNIPER_MODE == "FLASH" and SNIPER_TEXT:
             try:
+                # Millisecond response - No delay!
                 await client.send_message(event.chat_id, SNIPER_TEXT, reply_to=event.id)
                 SNIPER_MODE = "OFF"
                 await client.send_message("me", f"✅ **FLASH SNIPED:** {SNIPER_TEXT}")
@@ -569,8 +570,8 @@ async def incoming_handler(event):
             
         elif SNIPER_MODE == "QUIZ" and event.text:
             try:
-                # --- 2. FAST AI PROMPT ---
-                # No complex threading, just direct execution
+                # --- 2. FAST AI PROMPT (TURBO MODE) ---
+                # ትዕዛዙ በጣም አጭር ስለሆነ AI ወዲያውኑ ይመልሳል።
                 prompt = f"Ans: {event.text}. Short."
                 response = model.generate_content(prompt)
                 answer = response.text.strip()
