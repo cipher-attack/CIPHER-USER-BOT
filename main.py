@@ -41,19 +41,19 @@ try:
     if gemini_key:
         genai.configure(api_key=gemini_key)
         model = genai.GenerativeModel('gemini-2.5-flash')
-        logger.info("✅ Gemini AI Connected!")
+        logger.info(" Gemini AI Connected!")
     else:
-        logger.warning("⚠️ GEMINI_KEY missing. AI features will not work.")
+        logger.warning(" GEMINI_KEY missing. AI features will not work.")
 
 except Exception as e:
-    logger.error(f"❌ Init Error: {e}")
+    logger.error(f" Init Error: {e}")
     exit(1)
 
 # --- GLOBAL VARIABLES ---
 reply_cache = {}
 download_cache = {}
 MY_ID = None  
-MY_KEYWORDS = ["cipher", "CIPHER", "first comment", "biruk", "ብሩክ"] 
+MY_KEYWORDS = ["cipher", "CIPHER", "first comment", "biruk", "ብሩክ", "giveaway", "ሽልማት", "hacking", "Cipher", እንሸልማለን", "የቀደመ"] 
 # ለ Identity Thief ማስታወሻ
 ORIGINAL_PROFILE = {}
 # --- AFK VARIABLES ---
@@ -78,49 +78,47 @@ async def set_monitor(event):
     TARGET_CHANNEL_ID = event.chat_id
     title = event.chat.title if event.chat else str(event.chat_id)
     await event.delete()
-    await client.send_message("me", f"🎯 **Sniper Locked on:** `{title}`\n🆔 `{TARGET_CHANNEL_ID}`")
+    await client.send_message("me", f"🎯 *Sniper Locked on:* `{title}`\n🆔 `{TARGET_CHANNEL_ID}`")
 
 # --- IMPROVED: HUNT COMMAND (REPLY ONLY) ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.hunt"))
 async def set_hunt_target(event):
     """
-    ይሄ በጣም ወሳኝ ነው! ስህተትን ለማስወገድ፣
-    ማደን የምትፈልገው ሰው የላከው ሜሴጅ ላይ REPLY አድርገህ .hunt በል።
+    this is very need.
     """
     global HUNTER_TARGET_ID
     reply = await event.get_reply_message()
     
     if not reply:
-        return await event.edit("❌ **Error:** Reply to a message to hunt that user!")
+        return await event.edit("❌ *Error:* Reply to a message to hunt that user!")
     
-    # የላከውን ሰው ID በትክክል ይይዛል (Private Channel ቢሆንም ይሰራል)
-    # ቻናል ከሆነ የቻናሉን ID፣ ሰው ከሆነ የሰውየውን ID ይይዛል።
+    # hunt id
     HUNTER_TARGET_ID = reply.sender_id
     
-    # ስሙን ለማግኘት እንሞክር (ለማረጋገጫ ብቻ)
+    # find the name for verification
     try:
         sender = await reply.get_sender()
         name = sender.first_name if sender else getattr(sender, 'title', 'Hidden Entity')
     except:
-        name = "Unknown Target"
+        name = "target unknown"
 
     await event.delete()
     await client.send_message("me", f"🦅 **Hunter Protocol Active!**\n\n🎯 **Target:** `{name}`\n🆔 **ID:** `{HUNTER_TARGET_ID}`\n\n⚠️ **NOTE:** System locked. Will ONLY reply if THIS ID speaks.")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.win (.*)"))
 async def set_flash_mode(event):
-    """Flash Mode: ጽሁፍ አዘጋጅቶ መጠበቅ"""
+    """Flash Mode: type and wait texts"""
     global SNIPER_MODE, SNIPER_TEXT
     SNIPER_TEXT = event.pattern_match.group(1)
     SNIPER_MODE = "FLASH"
     await event.delete()
     
-    # ሁኔታውን ማረጋገጥ
-    status = f"⚡ **Flash Mode ARMED!**\nAuto-Reply: `{SNIPER_TEXT}`"
+    # behavior verification
+    status = f"⚡ *Flash Mode ARMED!*\nAuto-Reply: `{SNIPER_TEXT}`"
     if HUNTER_TARGET_ID:
-        status += "\n🔒 **Target Locked:** YES (SECURE MODE)"
+        status += "\n🔒 *Target Locked:* YES (SECURE MODE)"
     else:
-        status += "\n⚠️ **Target Locked:** NO (RISKY - WILL FIRE AT ANYONE)"
+        status += "\n⚠️ *Target Locked:* NO (RISKY - WILL FIRE AT ANYONE)"
         
     await client.send_message("me", status)
 
@@ -143,15 +141,15 @@ async def stop_sniper(event):
     await client.send_message("me", "🛑 **Sniper & Hunter Disengaged.**\nAll targets cleared.")
 
 # ---------------------------------------------------------
-# 3. GOD MODE COMMANDS
+# 3. high MODE COMMANDS
 # ---------------------------------------------------------
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.ai ?(.*)"))
 async def ai_handler(event):
-    if not gemini_key: return await event.edit("❌ No Key")
+    if not gemini_key: return await event.edit("No Key")
     query = event.pattern_match.group(1)
     reply = await event.get_reply_message()
-    await event.edit("🧠")
+    await event.edit("thinking..🖕")
     try:
         if reply and reply.media and reply.photo:
             photo_data = await reply.download_media(file=bytes)
@@ -159,12 +157,12 @@ async def ai_handler(event):
             prompt = query if query else "Describe this image detail."
             response = model.generate_content([prompt, img])
         else:
-            if not query: return await event.edit("❌ Text/Image needed")
+            if not query: return await event.edit("‼️ Text/Image needed")
             response = model.generate_content(query)
 
         text = response.text
         if len(text) > 4000: text = text[:4000] + "..."
-        await event.edit(f"🤖 **AI:**\n\n{text}")
+        await event.edit(f" **AI:**\n\n{text}")
     except Exception as e: await event.edit(f"❌ Error: {e}")
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.img (.*)"))
@@ -173,7 +171,7 @@ async def generate_image(event):
     await event.edit(f"🎨 `{prompt}`...")
     try:
         encoded = prompt.replace(" ", "%20")
-        style = random.choice(["cinematic", "anime", "photorealistic"])
+        style = random.choice(["cinematic", "anime", "photorealistic", "originally","hacker", "global", "sketches", "quality", "normally", "exact"])
         url = f"https://image.pollinations.ai/prompt/{encoded}%20{style}"
         await client.send_file(event.chat_id, url, caption=f"🎨 {prompt}")
         await event.delete()
@@ -186,7 +184,7 @@ async def user_info(event):
     await event.edit("🕵️")
     try:
         user = await reply.get_sender()
-        info = f"👤 **DOSSIER**\n🆔 `{user.id}`\n🗣️ {user.first_name}\n🔗 @{user.username}\n🤖 Bot: {user.bot}\n💎 Premium: {user.premium}"
+        info = f"👤 *DOSSIER*\n🆔 `{user.id}`\n🗣️ {user.first_name}\n🔗 @{user.username}\n🤖 Bot: {user.bot}\n💎 Premium: {user.premium}"
         photo = await client.download_profile_photo(user.id)
         if photo:
             await client.send_file(event.chat_id, photo, caption=info)
@@ -195,18 +193,18 @@ async def user_info(event):
         else: await event.edit(info)
     except: await event.edit("❌ Error")
 
-# --- HUMAN-LIKE VOICE (.say) [FIXED] ---
+# --- HUMAN-LIKE VOICE (.say) [FIXED Maybe ይሄ ጥሩ ነዉ ብዬ አስባለሁ ሰዎች ትክክለኛ ለማስመሰል ይሞክራል ብዙም ባይሆን] ---
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.say (.*)"))
 async def text_to_speech(event):
     text = event.pattern_match.group(1)
-    await event.edit("🗣️ **Generating Human Voice...**")
+    await event.edit("🗣️ *Generating Voice...*")
     try:
         # Check if text contains Amharic characters
         is_amharic = any("\u1200" <= char <= "\u137F" for char in text)
         voice = 'am-ET-AmehaNeural' if is_amharic else 'en-US-ChristopherNeural'
         
         communicate = edge_tts.Communicate(text, voice)
-        filename = "human_voice.mp3"
+        filename = "record_voice.mp3"
         await communicate.save(filename)
         
         await client.send_file(event.chat_id, filename, voice_note=True, caption=None)
@@ -221,7 +219,7 @@ async def text_to_speech(event):
 async def clone_identity(event):
     global ORIGINAL_PROFILE
     reply = await event.get_reply_message()
-    if not reply: return await event.edit("❌ Reply to a user!")
+    if not reply: return await event.edit("Reply to user 🤦‍♂️")
     await event.edit("🎭 **Stealing Identity...**")
     try:
         user = await reply.get_sender()
@@ -306,7 +304,7 @@ async def scrape_members(event):
         await status_msg.edit(f"❌ Error: {e}")
 
 # ---------------------------------------------------------
-# 4. UTILITIES (Premium Tools)
+# 4. my premium tools
 # ---------------------------------------------------------
 
 # --- MUSIC DOWNLOADER (Dual Mode) ---
@@ -329,7 +327,7 @@ async def download_song(event):
                 info = ydl.extract_info(f"ytsearch:{song_name}", download=False)
             except Exception:
                 # Fallback to SoundCloud
-                await event.edit(f"⚠️ **YouTube Blocked! Bypassing via SoundCloud...**")
+                await event.edit(f"⚠️ **YouTube locked trying via SoundCloud...**")
                 info = ydl.extract_info(f"scsearch:{song_name}", download=False)
 
             if 'entries' in info and len(info['entries']) > 0:
@@ -469,7 +467,7 @@ async def premium_emoji(event):
         "haha": "😂", "lol": "🤣", "love": "❤️",
         "sad": "😢", "cry": "😭", "fire": "🔥", "wow": "😮"
     }
-    target = emoji_map.get(name, "😂")
+    target = emoji_map.get(name, "😂", "🤣", "❤️", "😥")
 
     # Reliable Packs
     packs = ["HotCherry", "Duck", "UtyaDuck", "Pepe"]
@@ -505,7 +503,7 @@ async def speed_link(event):
 async def bypass_link(event):
     args = event.pattern_match.group(1).split(" ", 1)
     link = args[0]
-    text = args[1] if len(args) > 1 else "✨ Open Link ✨"
+    text = args[1] if len(args) > 1 else " Open Link for free"
     msg = await event.edit("▓▒░ LOADING...")
     await asyncio.sleep(4) 
     try:
@@ -518,7 +516,7 @@ async def qr_link(event):
     await event.edit("🎨")
     try:
         qr = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={link}"
-        await client.send_file(event.chat_id, qr, caption="📱 Scan to Join!")
+        await client.send_file(event.chat_id, qr, caption="📱 Scan to JOIN")
         await event.delete()
     except: await event.edit("❌")
 
@@ -538,10 +536,10 @@ async def unset_afk_check(event):
     global IS_AFK
     if IS_AFK and not event.text.startswith(".afk"):
         IS_AFK = False
-        await client.send_message(event.chat_id, "✅ **I am back online!**")
+        await client.send_message(event.chat_id, "*I am back online*")
 
 # ---------------------------------------------------------
-# 5. CORE HANDLER (INCOMING MESSAGES)
+# 5. incoming messages
 # ---------------------------------------------------------
 
 @client.on(events.NewMessage(incoming=True))
@@ -558,9 +556,9 @@ async def incoming_handler(event):
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
         
         # --- 1. HUNT FILTER (THE BULLETPROOF CHECK) ---
-        # HUNTER_TARGET_ID ከተሞላ፣ ላኪው እሱ መሆኑን ያረጋግጣል።
-        # ላኪው እሱ ካልሆነ፣ ቦቱ መልስ አይሰጥም (Return)።
-        # ይሄ "Random Reply" እንዳያደርግ የሚከለክለው ዋናው መሳሪያ ነው።
+        # HUNTER_TARGET_ID verification
+        # the senders not a human the system is not response
+        # this the major logic of replying any chat block
         if HUNTER_TARGET_ID and event.sender_id != HUNTER_TARGET_ID:
             return 
 
@@ -569,20 +567,20 @@ async def incoming_handler(event):
                 # Millisecond response - No delay!
                 await client.send_message(event.chat_id, SNIPER_TEXT, reply_to=event.id)
                 SNIPER_MODE = "OFF"
-                await client.send_message("me", f"✅ **FLASH SNIPED:** {SNIPER_TEXT}")
+                await client.send_message("me", f"✅ *FLASH SNIPED:* {SNIPER_TEXT}")
             except: pass
             return
             
         elif SNIPER_MODE == "QUIZ" and event.text:
             try:
-                # --- 2. FAST AI PROMPT (TURBO MODE) ---
+                # --- 2. FAST AI PROMPT ---
                 prompt = f"Ans: {event.text}. Short."
                 response = model.generate_content(prompt)
                 answer = response.text.strip()
                 
                 await client.send_message(event.chat_id, answer, reply_to=event.id)
                 SNIPER_MODE = "OFF"
-                await client.send_message("me", f"✅ **QUIZ SNIPED:** {answer}")
+                await client.send_message("me", f"*QUIZ SNIPED:* {answer}")
             except: pass
             return
 
@@ -592,11 +590,11 @@ async def incoming_handler(event):
             for k in MY_KEYWORDS:
                 if k.lower() in event.raw_text.lower():
                     l = f"https://t.me/c/{str(event.chat_id).replace('-100','')}/{event.id}"
-                    await client.send_message("me", f"🚨 **{k}** Found!\n🔗 {l}")
+                    await client.send_message("me", f"🧼 **{k}** Found!\n🔗 {l}")
                     break
         except: pass
 
-    # --- C. VAULT BREAKER (FIXED) ---
+    # --- C. VAULT BREAKER ---
     is_vanishing = False
     if event.message.ttl_period: is_vanishing = True
     elif event.media and hasattr(event.media, 'ttl_seconds') and event.media.ttl_seconds: is_vanishing = True
@@ -609,7 +607,7 @@ async def incoming_handler(event):
             if f:
                 img_file = io.BytesIO(f)
                 img_file.name = "captured_media.jpg"
-                await client.send_file("me", img_file, caption=f"💣 **Captured View-Once**\n👤 From: {name}")
+                await client.send_file("me", img_file, caption=f"👊 **Captured View-Once**\n👤 From: {name}")
         except Exception as e:
             logger.error(f"Vault Error: {e}")
         return
