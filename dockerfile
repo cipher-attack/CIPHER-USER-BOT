@@ -1,27 +1,27 @@
-# Python 3.11 ስሪትን ተጠቀም
+# python version
 FROM python:3.11-slim
 
-# ffmpeg እና አስፈላጊ የሆኑ የሲስተም ፓኬጆችን መጫን
-# (ca-certificates ለ yt-dlp ኢንተርኔት ኮኔክሽን ይጠቅማል)
+# ffmpeg installation
+# ca-certificates for yt-dlp
 RUN apt-get update && \
     apt-get install -y ffmpeg ca-certificates && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# የስራ ቦታ መፍጠር
+# craete work space
 WORKDIR /app
 
-# Pip ማዘመን (ለደህንነት እና ፍጥነት)
+# Pip update and upgrade
 RUN pip install --upgrade pip
 
-# አስፈላጊ ፋይሎችን መገልበጥ
+# copy major files
 COPY requirements.txt .
 
-# ፓኬጆችን መጫን
+# install pkg 
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ኮዱን መገልበጥ
+# copy code
 COPY . .
 
-# ቦቱን ማስጀመር
+# run bot
 CMD ["python", "main.py"]
