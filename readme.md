@@ -1,85 +1,91 @@
----
+# Userbot ያዝ እንግዲህ lela ሰው እንዳታሳይ su
 
-# 🤖 **GOD MODE: OPERATIONAL MANUAL**
-*(The Ultimate Telegram Control System)*
-
----
-
-## 🎯 **SECTION 1: GIVEAWAY SNIPER (የስጦታ አዳኝ)**
-*ሽልማቶችን በ 0.01 ሰከንድ ፍጥነት ለመቦጭቅ የሚረዱ ትዕዛዞች።*
-*(ማሳሰቢያ፡ ሁሉም ትዕዛዞች ከጻፍካቸው በኋላ በራሳቸው ይጠፋሉ - **Stealth Mode**)*
-
-| ትዕዛዝ (Command) | ተግባር (Action) |
-| :--- | :--- |
-| **`.monitor`** | አሁን ያለህበትን ግሩፕ/ቻናል እንደ **"ዒላማ"** ይመርጣል። (መጀመሪያ ይህንን ላክ) |
-| **`.win [ጽሁፍ]`** | **⚡ Flash Mode:** አዲስ ፖስት ሲወጣ፣ ቦቱ ቀድሞ ያዘጋጀኸውን ጽሁፍ ይተኩሳል።<br>*(ምሳሌ: `.win Done` ወይም `.win Me`)* |
-| **`.quiz`** | **🧠 Quiz Mode:** አዲስ ፖስት ሲወጣ፣ ቦቱ ጥያቄውን አንብቦ፣ በ AI መልሱን ሰርቶ ይልካል። |
-| **`.stop`** | አድኖ ሲጨርስ Sniper-ሩን ያጠፋዋል። (ግዴታ ማጥፋት አለብህ) |
-
-> **⚠️ ፕሮ ቲፕ:** ግሩፑ ውስጥ `.monitor` በል፣ ቀጥለህ `.win Done` በል። አሁን ስልክህን አስቀምጠህ ቡናህን ጠጣ። አድሚኑ ሲለጥፍ ቦቱ ስራውን ይጨርሳል።
+**Project:** Personal Telethon Automation Script
+**Status:** Active
+**Author:** [cipher_attack]
 
 ---
 
-## 🧠 **SECTION 2: ARTIFICIAL INTELLIGENCE**
-*ከ Google Gemini ጋር የተገናኘ "የላቀ አእምሮ"።*
+### 1. Configuration (Environment Variables)
 
-### 1. 🔮 All-Seeing Eye (ሁሉን አዋቂ)
-*   **ጽሁፍ ለመጠየቅ:**
-    `> .ai የኳንተም ፊዚክስ ምንድን ነው?`
-*   **ፎቶ ለማስነበብ (Vision):**
-    ማንኛውንም ፎቶ (የቤት ስራ፣ ሰው፣ ቦታ) **Reply** አድርገህ `.ai` ብለህ ላክ። ቦቱ ፎቶውን አይቶ ምን እንደሆነ ይነግርሃል።
+Before deploying, ensure these variables are set in the .env file or cloud dashboard.
 
-### 2. 🎨 The Artist (ሰዓሊው)
-*   ቦቱ እንዲስልልህ የምትፈልገውን ነገር እዘዘው።
-    `> .img flying car in Addis Ababa`
-
-### 3. 🕵️ The Profiler (ሰላዩ)
-*   የማንኛውንም ሰው ሙሉ መረጃ (ID, DC, Name, Username) እና **ፕሮፋይል ፎቶ** ለማውረድ።
-    `> (Reply to User) .info`
-
-### 4. 🗣️ The Ventriloquist (አናጋሪው)
-*   የጻፍከውን ጽሁፍ ወደ **Voice Note** (ድምጽ) ቀይሮ ይልካል።
-    `> .say ሰላም እንዴት ነህ?`
+* `API_ID` & `API_HASH`: Obtained from my.telegram.org.
+* `SESSION`: The Telethon string session.
+* `GEMINI_KEY`: (Optional) Google Gemini API key for AI features.
+* `RENDER_EXTERNAL_URL`: For keeping the web server alive on PaaS.
 
 ---
 
-## 👻 **SECTION 3: GHOST & SECURITY**
-*ሳትታይ የምትሰራባቸው ሚስጥራዊ መንገዶች።*
+### 2. Sniper Protocol (Giveaways & Quizzes)
 
-*   **👻 Ghost Mode:**
-    ሰዎች **DM (Private)** ሲያወሩህ፣ መልእክቱ በቀጥታ ወደ **Saved Messages** ይመጣል። እዛ ሆነህ አንብብ (እነሱ ጋር **Seen** አይሆንም)።
+The core logic for winning giveaways. Follow the **Target -> Lock -> Fire** sequence strictly.
 
-*   **👻 Ghost Reply:**
-    Saved Messages ላይ ሆነህ ለመልእክቱ **Reply** አድርግ። መልስህ ለሰውዬው ይደርሰዋል (አሁንም Seen አይሆንም)።
+**Step 1: Set Target Channel**
+* Command: `.monitor`
+* Usage: Send inside the channel hosting the giveaway. Captures Chat ID.
 
-*   **💣 Vault Breaker:**
-    ማንም ሰው **በሰከንድ የሚጠፋ (View Once)** ፎቶ ቢልክልህ፣ ቦቱ በራሱ ጊዜ "ጠልፎ" Saved Messages ላይ ያስቀምጥልሃል። **አይጠፋም!**
+**Step 2: Hunter Lock (Safety Mechanism)**
+* Command: `.hunt` (Must Reply)
+* Usage: **Reply** to a message sent by the giveaway host (admin or bot).
+* *Why:* This ensures the bot *only* triggers when that specific User ID posts. Prevents misfiring on random comments.
 
-*   **🔓 Restricted Bypass:**
-    "Save የተከለከለ" ቻናል ካገኘህ፣ የፖስቱን **Link** ወደ Saved Messages ላከው። ቦቱ ፋይሉን አውርዶ እንደገና ይልክልሃል።
+**Step 3: Arm the Sniper**
+* **Mode A (Flash):** For "First comment wins" speed tasks.
+  * Command: `.win [text]`
+  * Example: `.win 100birr` (Auto-replies "100birr" instantly when the Hunter Target posts).
+* **Mode B (Quiz):** For AI-based questions.
+  * Command: `.quiz`
+  * Action: Uses Gemini AI to solve the question and reply immediately.
 
----
-
-## 💎 **SECTION 4: PREMIUM TOOLS**
-*ያለ ክፍያ የሚሰሩ የቅንጦት ዕቃዎች።*
-
-| ትዕዛዝ | ጥቅም |
-| :--- | :--- |
-| **`.tr`** | *(Reply)* ሰው የላከውን ወደ እንግሊዝኛ ይተረጉማል። |
-| **`//[lang]`** | አንተ የጻፍከውን ወደ ሌላ ቋንቋ ይቀይራል።<br>*(ምሳሌ: `ሰላም //en` → "Hello")* |
-| **`.link`** | *(Reply)* ፋይልን ወደ **Direct Link** ይቀይራል። (በ IDM በፍጥነት ለማውረድ) |
-| **`.haha`** | የሚንቀሳቀስ (Premium) ስቲከር ይልካል።<br>*(አማራጮች: `.love`, `.sad`, `.fire`, `.wow`, `.lol`)* |
+**Stop Command:**
+* `.stop` - Disables all sniper modes and clears targets.
 
 ---
 
-## 👂 **SECTION 5: SURVEILLANCE (መረጃ ጠለፋ)**
+### 3. General Commands Reference
 
-*   **Auto Monitor:**
-    ቦቱ የትኛውም ግሩፕ ላይ **"Cipher"**, **"Admin"**, **"Biruk"** የሚሉ ስሞችን ከሰማ፣ ወዲያውኑ **"🚨 ALERT!"** ብሎ የቻቱን ሊንክ ወደ Saved Messages ይልክልሃል።
+#### AI & Intelligence
+* `.ai [query]` - Ask Gemini AI. (Reply to an image to analyze it).
+* `.img [prompt]` - Generate an image using Pollinations AI.
+* `.tr` - Reply to any message to translate it to English.
+
+#### Media & Utilities
+* `.song [name]` - Downloads music from YouTube/SoundCloud.
+* `.vpic` - Reply to a video. Trims it to 9 seconds and sets it as a Telegram Video Profile.
+* `.web [url]` - Takes a screenshot of a website and sends it as an image.
+* `.qrl [link]` - Converts text/link into a QR Code.
+
+#### Identity & Trolling
+* `.clone` - Reply to a user to copy their Name, Bio, and Profile Picture.
+* `.revert` - Restores original profile (Must have cloned someone first).
+* `.say [text]` - Generates a voice note (supports Amharic detection).
+* `.hack` - Displays a fake "hacking" terminal animation.
+
+#### Administration
+* `.purge` - Reply to a message. Deletes that message and everything below it.
+* `.scrape [channel]` - Scrapes active members from a target group and invites them to the current group.
+* `.all [message]` - Tags all members in the group (Hidden mentions).
 
 ---
 
-### 🛡️ **SYSTEM STATUS**
-ቦቱ **Render Cloud** ላይ ስለሆነ፣ ስልክህ ቢጠፋ፣ ዳታ ቢዘጋ ወይም ብትተኛ **24/7 ይሰራል**።
+### 4. Background Processes (Ghost Mode)
 
-**Enjoy your Super Power!** 
+**Private Forwarding:**
+* Incoming private messages (PMs) are automatically forwarded to "Saved Messages" if unseen.
+* Reply mechanism: Replying to the forwarded message in "Saved Messages" sends the reply to the actual user anonymously.
+
+**View-Once Bypass:**
+* Automatically detects "View Once" (destructible) media and saves a copy to "Saved Messages".
+
+**AFK System:**
+* `.afk [reason]` - Sets status to Away. Auto-replies to DMs.
+* Typing anything in any chat disables AFK automatically.
+
+---
+
+### 5. Known Issues / Notes
+
+* **Sniper Latency:** The `.quiz` mode depends on Gemini API speed. usually < 1.5s.
+* **Safety:** `.scrape` has a limit of 40 users per run to prevent account bans.
+* **Hosting:** The web server (aiohttp) is included to satisfy port binding requirements on platforms like Render.
