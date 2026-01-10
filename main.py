@@ -115,7 +115,7 @@ async def set_flash_mode(event):
     SNIPER_MODE = "FLASH"
     await event.delete()
     
-    # ሁኔታውን ማረጋገጥ
+    # behavior verificayion
     status = f"⚡ **Flash Mode ARMED!**\nAuto-Reply: `{SNIPER_TEXT}`"
     if HUNTER_TARGET_ID:
         status += "\n🔒 **Target Locked:** YES (SECURE MODE)"
@@ -126,7 +126,7 @@ async def set_flash_mode(event):
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.quiz"))
 async def set_quiz_mode(event):
-    """Quiz Mode: AI በሰውኛ እና በአጭሩ እንዲመልስ"""
+    """Quiz Mode: AI response like human"""
     global SNIPER_MODE
     SNIPER_MODE = "QUIZ"
     await event.delete()
@@ -134,7 +134,7 @@ async def set_quiz_mode(event):
 
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.stop"))
 async def stop_sniper(event):
-    """Sniping ማቆሚያ"""
+    """Sniping stop"""
     global SNIPER_MODE, TARGET_CHANNEL_ID, HUNTER_TARGET_ID
     SNIPER_MODE = "OFF"
     TARGET_CHANNEL_ID = None
@@ -306,7 +306,7 @@ async def scrape_members(event):
         await status_msg.edit(f"❌ Error: {e}")
 
 # ---------------------------------------------------------
-# 4. UTILITIES (Premium Tools)
+# 4. ከሰራ ሞክሩት/ልሞክረው 😁(Premium Tools)
 # ---------------------------------------------------------
 
 # --- MUSIC DOWNLOADER (Dual Mode) ---
@@ -505,7 +505,7 @@ async def speed_link(event):
 async def bypass_link(event):
     args = event.pattern_match.group(1).split(" ", 1)
     link = args[0]
-    text = args[1] if len(args) > 1 else "✨ Open Link ✨"
+    text = args[1] if len(args) > 1 else " Open Link "
     msg = await event.edit("▓▒░ LOADING...")
     await asyncio.sleep(4) 
     try:
@@ -541,7 +541,7 @@ async def unset_afk_check(event):
         await client.send_message(event.chat_id, "✅ **I am back online!**")
 
 # ---------------------------------------------------------
-# 5. CORE HANDLER (INCOMING MESSAGES)
+# 5. ዋናው ስራዬ ይቺ ናት 
 # ---------------------------------------------------------
 
 @client.on(events.NewMessage(incoming=True))
@@ -558,9 +558,9 @@ async def incoming_handler(event):
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
         
         # --- 1. HUNT FILTER (THE BULLETPROOF CHECK) ---
-        # HUNTER_TARGET_ID ከተሞላ፣ ላኪው እሱ መሆኑን ያረጋግጣል።
-        # ላኪው እሱ ካልሆነ፣ ቦቱ መልስ አይሰጥም (Return)።
-        # ይሄ "Random Reply" እንዳያደርግ የሚከለክለው ዋናው መሳሪያ ነው።
+        # HUNTER_TARGET_ID።
+        # the senders not human the ai is not respose።
+        # this is prevent random replys።
         if HUNTER_TARGET_ID and event.sender_id != HUNTER_TARGET_ID:
             return 
 
@@ -624,7 +624,7 @@ async def incoming_handler(event):
         except: pass
 
 # ---------------------------------------------------------
-# 6. SAVED MESSAGES HANDLER
+# 6. SAVED MESSAGES its basic for me
 # ---------------------------------------------------------
 
 @client.on(events.NewMessage(chats="me"))
