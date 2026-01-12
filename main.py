@@ -53,7 +53,7 @@ except Exception as e:
 reply_cache = {}
 download_cache = {}
 MY_ID = None  
-MY_KEYWORDS = ["cipher", "CIPHER", "first comment", "biruk", "ብሩክ"] 
+MY_KEYWORDS = ["cipher", "give away", "first comment", "biruk", "ብሩክ"] 
 # ለ Identity Thief ማስታወሻ
 ORIGINAL_PROFILE = {}
 # --- AFK VARIABLES ---
@@ -554,21 +554,27 @@ async def incoming_handler(event):
         if sender and not sender.bot:
             await event.reply(f"🤖 **Auto-Reply:**\nI am currently AFK (Away From Keyboard).\n\nReason: `{AFK_REASON}`")
 
-    # --- A. SNIPER LOGIC (UPGRADED: HUNTER & SPEED) ---
+        # --- A. SNIPER LOGIC (UPGRADED: HUNTER & SPEED) ---
     if TARGET_CHANNEL_ID and event.chat_id == TARGET_CHANNEL_ID:
         
         # --- 1. HUNT FILTER (THE BULLETPROOF CHECK) ---
-        # HUNTER_TARGET_ID።
-        # the senders not human the ai is not respose።
-        # this is prevent random replys።
+        # ይህ መስመር ቦቱ በዘፈቀደ ሜሴጅ እንዳይተኩስና ሪፖርት እንዳትደረግ ይከላከልልሃል
         if HUNTER_TARGET_ID and event.sender_id != HUNTER_TARGET_ID:
             return 
 
         if SNIPER_MODE == "FLASH" and SNIPER_TEXT:
             try:
-                # Millisecond response - No delay!
-                await client.send_message(event.chat_id, SNIPER_TEXT, reply_to=event.id)
+                # ቴሌግራምን ለማታለል በጣም ትንሽ (ሚሊሰከንድ) መዘግየት
+                await asyncio.sleep(random.uniform(0.1, 0.2))
+                
+                # ምላሽ ከመላኩ በፊት "እየጻፈ ነው" የሚል ምልክት ለሰርቨር መላክ
+                async with client.action(event.chat_id, 'typing'):
+                    await client.send_message(event.chat_id, SNIPER_TEXT, reply_to=event.id)
+                
                 SNIPER_MODE = "OFF"
+                
+                # ለራስህ የሚመጣው ማረጋገጫ በግሩፑ ላይ ያለውን ፍጥነት እንዳያጓትተው አዘግየው
+                await asyncio.sleep(1)
                 await client.send_message("me", f"✅ **FLASH SNIPED:** {SNIPER_TEXT}")
             except: pass
             return
@@ -576,12 +582,16 @@ async def incoming_handler(event):
         elif SNIPER_MODE == "QUIZ" and event.text:
             try:
                 # --- 2. FAST AI PROMPT (TURBO MODE) ---
-                prompt = f"Ans: {event.text}. Short."
-                response = model.generate_content(prompt)
-                answer = response.text.strip()
+                # AI በሚያስብበት ሰዓት ቴሌግራም እንዳይጠራጠር 'typing' ስታተስ ያሳያል
+                async with client.action(event.chat_id, 'typing'):
+                    prompt = f"Ans: {event.text}. Short."
+                    response = model.generate_content(prompt)
+                    answer = response.text.strip()
+                    
+                    await client.send_message(event.chat_id, answer, reply_to=event.id)
                 
-                await client.send_message(event.chat_id, answer, reply_to=event.id)
                 SNIPER_MODE = "OFF"
+                await asyncio.sleep(1)
                 await client.send_message("me", f"✅ **QUIZ SNIPED:** {answer}")
             except: pass
             return
@@ -663,7 +673,7 @@ async def saved_msg_actions(event):
 # 7. SERVER & STARTUP
 # ---------------------------------------------------------
 
-async def home(r): return web.Response(text="Bot Active!")
+async def home(r): return web.Response(text="i.m Active!")
 
 async def download(r):
     fid = r.match_info['file_id']
@@ -696,11 +706,14 @@ async def main():
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
 
-    while True:
+        while True:
         try:
             await client(functions.account.UpdateStatusRequest(offline=False))
+            # ከ 45 ደቂቃ እስከ 1 ሰዓት ከ 15 ደቂቃ ባለው ጊዜ ውስጥ በዘፈቀደ እንዲያደርገው
+            wait_time = random.randint(2700, 4500) 
+            await asyncio.sleep(wait_time) 
+        except:
             await asyncio.sleep(60)
-        except: await asyncio.sleep(10)
 
 if __name__ == '__main__':
     loop = asyncio.new_event_loop()
