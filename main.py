@@ -706,13 +706,17 @@ async def main():
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
 
-        while True:
+    # While መጀመር ያለበት ከ site.start() ጋር እኩል መስመር ላይ ነው
+    while True:
         try:
+            # እዚህ ጋር ክፍተቱ (space) መስተካከል አለበት
             await client(functions.account.UpdateStatusRequest(offline=False))
-            # ከ 45 ደቂቃ እስከ 1 ሰዓት ከ 15 ደቂቃ ባለው ጊዜ ውስጥ በዘፈቀደ እንዲያደርገው
+            
+            # ከ 45 ደቂቃ እስከ 1 ሰዓት ከ 15 ደቂቃ ባለው ጊዜ ውስጥ
             wait_time = random.randint(2700, 4500) 
             await asyncio.sleep(wait_time) 
-        except:
+        except Exception as e:
+            logger.error(f"Error: {e}")
             await asyncio.sleep(60)
 
 if __name__ == '__main__':
